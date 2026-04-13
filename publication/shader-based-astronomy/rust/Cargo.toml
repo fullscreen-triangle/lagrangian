@@ -1,0 +1,47 @@
+[package]
+name = "shader-astronomy"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+authors = ["Kundai Farai Sachikonye <kundai.sachikonye@bitspark.com>"]
+description = "GPU-backed five-pass pipeline for shader-based astronomy"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+
+[lib]
+name = "shader_astronomy"
+path = "src/lib.rs"
+
+[dependencies]
+# GPU compute / render
+wgpu = "22"
+bytemuck = { version = "1.14", features = ["derive"] }
+pollster = "0.3"
+
+# Math
+glam = { version = "0.29", features = ["bytemuck"] }
+
+# Output / examples
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+# Errors / logging
+anyhow = "1"
+thiserror = "1"
+log = "0.4"
+env_logger = "0.11"
+
+[dev-dependencies]
+approx = "0.5"
+criterion = "0.5"
+
+[[bench]]
+name = "pipeline"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+
+[profile.bench]
+inherits = "release"

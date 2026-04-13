@@ -1,0 +1,46 @@
+[project]
+name = "shader-astronomy"
+version = "0.1.0"
+description = "CPU reference implementation and validation harness for shader-based astronomy"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Kundai Farai Sachikonye", email = "kundai.sachikonye@bitspark.com" },
+]
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.1",
+    "ruff>=0.5",
+    "mypy>=1.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shader_astronomy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "NPY"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src"]
