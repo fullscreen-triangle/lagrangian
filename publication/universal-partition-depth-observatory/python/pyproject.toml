@@ -1,7 +1,7 @@
 [project]
-name = "shader-astronomy"
+name = "gthree"
 version = "0.1.0"
-description = "CPU reference implementation and validation harness for shader-based astronomy"
+description = "Three-route computation of Newton's gravitational constant"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
@@ -9,8 +9,8 @@ authors = [
 ]
 dependencies = [
     "numpy>=1.26",
+    "mpmath>=1.3",
     "scipy>=1.11",
-    "matplotlib>=3.8",
 ]
 
 [project.optional-dependencies]
@@ -22,14 +22,14 @@ dev = [
 ]
 
 [project.scripts]
-shader-astronomy = "shader_astronomy.cli:main"
+gthree = "gthree.cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/shader_astronomy"]
+packages = ["src/gthree"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
