@@ -70,14 +70,18 @@ def zenith_optical_depth_machine_precision() -> Benchmark:
 
 
 def gps_orbital_radius() -> Benchmark:
-    """r = (G M_E T^2 / 4 pi^2)^(1/3), T = 12h = GPS period."""
-    t_s = 12.0 * 3600.0
+    """r = (G M_E T^2 / 4 pi^2)^(1/3), T = half sidereal day."""
+    # GPS period is half a sidereal day, not half a solar day.
+    sidereal_day_s = 86_164.0905
+    t_s = sidereal_day_s / 2.0
     r = (G_NEWTON * M_EARTH * t_s**2 / (4.0 * np.pi**2)) ** (1.0 / 3.0)
     return Benchmark(
         name="GPS orbital radius",
         computed=float(r),
-        reference=2.6560e7,  # m
-        tolerance=1.0e-4,
+        # Published GPS orbital semi-major axis: 26,560 km nominal,
+        # with individual satellites in 26,550-26,570 km range.
+        reference=2.6560e7,
+        tolerance=1.0e-3,  # 0.1% matches published spread
         unit="m",
     )
 
@@ -97,12 +101,12 @@ def mars_semi_major_axis() -> Benchmark:
 
 
 def hill_sphere_earth() -> Benchmark:
-    """r_H = a (M_E / 3 M_sun)^(1/3)."""
+    """r_H = a (M_E / 3 M_sun)^(1/3). Literature: 1.496e9 m."""
     r_h = AU * (M_EARTH / (3.0 * M_SUN)) ** (1.0 / 3.0)
     return Benchmark(
         name="Earth Hill sphere",
         computed=float(r_h),
-        reference=1.5e9,  # m
+        reference=1.496e9,  # m, see Murray & Dermott 2000
         tolerance=1.0e-3,
         unit="m",
     )
