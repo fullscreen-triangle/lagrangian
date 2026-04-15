@@ -1,0 +1,50 @@
+[workspace]
+resolver = "2"
+members = [
+    "publication/shader-based-astronomy/rust",
+    # "publication/universal-partition-depth-observatory/rust",  # pending
+]
+exclude = [
+    "web",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+authors = ["Kundai Farai Sachikonye <kundai.sachikonye@bitspark.com>"]
+license = "MIT"
+repository = "https://github.com/fullscreen-triangle/observatory"
+
+[workspace.dependencies]
+# GPU compute / render
+wgpu = "22"
+bytemuck = { version = "1.14", features = ["derive"] }
+pollster = "0.3"
+
+# Math
+glam = { version = "0.29", features = ["bytemuck"] }
+
+# Precision
+dashu = "0.4"
+
+# Errors / logging
+anyhow = "1"
+thiserror = "1"
+log = "0.4"
+env_logger = "0.11"
+
+# Output / examples
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+# Dev
+approx = "0.5"
+criterion = "0.5"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+
+[profile.bench]
+inherits = "release"
