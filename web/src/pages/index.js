@@ -30,32 +30,31 @@ export default function Home() {
             </div>
             <div className="flex w-1/2 flex-col items-start self-center lg:w-full lg:text-center">
               <AnimatedText
-                text="The GPU is the instrument."
+                text="Astronomy without a telescope."
                 className="!text-left !text-6xl xl:!text-5xl lg:!text-center lg:!text-6xl md:!text-5xl sm:!text-3xl"
               />
               <p className="my-4 max-w-xl text-base font-medium md:text-sm sm:!text-xs">
-                A set of scientific instruments that run as WebGPU shaders in
-                your browser. They compute the answer — they do not render
-                someone else&apos;s computation. There is no backend, no API,
-                no server. Open the page, and your hardware becomes the
-                observatory.
+                The GPU is the instrument. Open a page, point at a synthetic
+                sky, and your hardware resolves multiple celestial sources
+                through a single looped optical ray — no aperture, no mount,
+                no backend, no API. The browser does the observing.
               </p>
               <div className="mt-2 flex items-center gap-4 self-start flex-wrap lg:self-center">
                 <Link
-                  href="/instruments/"
+                  href="/instruments/sky-survey/"
                   className="rounded-lg border-2 border-solid bg-dark p-2.5 px-6 text-lg font-semibold
                   capitalize text-light hover:border-dark hover:bg-transparent hover:text-dark
                   dark:bg-light dark:text-dark dark:hover:border-light dark:hover:bg-dark dark:hover:text-light
                   md:p-2 md:px-4 md:text-base"
                 >
-                  Open the instruments
+                  Observe the sky
                 </Link>
                 <Link
-                  href="/documentation/"
+                  href="/instruments/"
                   className="text-lg font-medium capitalize text-dark underline
                   dark:text-light md:text-base"
                 >
-                  Read the papers
+                  All instruments
                 </Link>
               </div>
             </div>

@@ -6,9 +6,9 @@ import Link from "next/link";
 
 const INSTRUMENTS = [
   {
-    slug: "atmosphere",
-    name: "Atmosphere",
-    tagline: "Five-pass sky renderer with physically derived Rayleigh and Mie scattering.",
+    slug: "sky-survey",
+    name: "Sky Survey",
+    tagline: "Procedural 3D starfield. Select stars and watch a single ray resolve all of them.",
     status: "live",
   },
   {
@@ -16,6 +16,12 @@ const INSTRUMENTS = [
     name: "Loop Coupling",
     tagline: "Multi-source resolution via looped rays through molecular harmonic resonators.",
     status: "live",
+  },
+  {
+    slug: "atmosphere",
+    name: "Atmosphere",
+    tagline: "Five-pass sky renderer with physically derived Rayleigh and Mie scattering.",
+    status: "pending",
   },
   {
     slug: "g-routes",

@@ -30,7 +30,7 @@ export default function JupiterModel({ className = "" }) {
         <ambientLight intensity={0.25} />
         <directionalLight position={[5, 3, 5]} intensity={1.4} />
         <Suspense fallback={null}>
-          <Planet scale={1.3} />
+          <Planet scale={1} />
         </Suspense>
         <OrbitControls
           enablePan={false}
