@@ -12,6 +12,12 @@ const INSTRUMENTS = [
     status: "live",
   },
   {
+    slug: "loop-coupling",
+    name: "Loop Coupling",
+    tagline: "Multi-source resolution via looped rays through molecular harmonic resonators.",
+    status: "live",
+  },
+  {
     slug: "g-routes",
     name: "G Routes",
     tagline: "Three-route computation of Newton's gravitational constant, live from n.",
