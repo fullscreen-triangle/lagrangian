@@ -18,9 +18,10 @@ CARGO ?= cargo
 
 SHADER_PKG := publication/shader-based-astronomy
 GTHREE_PKG := publication/universal-partition-depth-observatory
+LOOP_PKG   := publication/harmonic-scattering-loop-coupling
 
-.PHONY: help validate validate-shader validate-gthree figures figures-shader \
-        figures-gthree papers papers-shader papers-gthree rust rust-test \
+.PHONY: help validate validate-shader validate-gthree validate-loop figures figures-shader \
+        figures-gthree papers papers-shader papers-gthree papers-loop rust rust-test \
         web-dev web-build clean
 
 help:
@@ -34,7 +35,7 @@ help:
 	@echo "  make web-build    produce the static export at web/out/"
 	@echo "  make clean        remove build artefacts"
 
-validate: validate-shader validate-gthree
+validate: validate-shader validate-gthree validate-loop
 
 validate-shader:
 	cd $(SHADER_PKG)/python && \
@@ -44,6 +45,11 @@ validate-shader:
 validate-gthree:
 	cd $(GTHREE_PKG)/python && \
 	  PYTHONPATH=src PYTHONIOENCODING=utf-8 $(PYTHON) -m gthree.cli \
+	    --output-dir ../output
+
+validate-loop:
+	cd $(LOOP_PKG)/python && \
+	  PYTHONPATH=src PYTHONIOENCODING=utf-8 $(PYTHON) -m loop_coupling.cli \
 	    --output-dir ../output
 
 figures: figures-shader figures-gthree
@@ -58,7 +64,7 @@ figures-gthree:
 	  PYTHONPATH=src PYTHONIOENCODING=utf-8 $(PYTHON) -m gthree.plots \
 	    --output-dir ../figures
 
-papers: papers-shader papers-gthree
+papers: papers-shader papers-gthree papers-loop
 
 papers-shader:
 	cd $(SHADER_PKG) && \
@@ -73,6 +79,13 @@ papers-gthree:
 	  bibtex universal-partition-depth-observatory || true && \
 	  pdflatex -interaction=nonstopmode universal-partition-depth-observatory.tex && \
 	  pdflatex -interaction=nonstopmode universal-partition-depth-observatory.tex
+
+papers-loop:
+	cd $(LOOP_PKG) && \
+	  pdflatex -interaction=nonstopmode harmonic-scattering-loop-coupling-map.tex && \
+	  bibtex harmonic-scattering-loop-coupling-map || true && \
+	  pdflatex -interaction=nonstopmode harmonic-scattering-loop-coupling-map.tex && \
+	  pdflatex -interaction=nonstopmode harmonic-scattering-loop-coupling-map.tex
 
 rust:
 	$(CARGO) build --release
@@ -89,6 +102,7 @@ web-build:
 clean:
 	rm -rf $(SHADER_PKG)/output $(SHADER_PKG)/figures
 	rm -rf $(GTHREE_PKG)/output $(GTHREE_PKG)/figures
+	rm -rf $(LOOP_PKG)/output
 	rm -rf target
 	rm -rf web/.next web/out
 	find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true

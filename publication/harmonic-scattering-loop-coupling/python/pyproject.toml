@@ -1,0 +1,37 @@
+[project]
+name = "loop-coupling"
+version = "0.1.0"
+description = "Validation harness for the harmonic-scattering loop-coupling framework"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Kundai Farai Sachikonye", email = "kundai.sachikonye@bitspark.com" },
+]
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+loop-coupling = "loop_coupling.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/loop_coupling"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

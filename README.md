@@ -122,6 +122,17 @@ Two publishable, self-contained papers live under `publication/`:
   (MOND's $a_0 \approx c H_0 / 2\pi$, dark-energy $w_{\text{eff}} = -0.75$,
   $\dot G/G$ of order $10^{-11}$ yr$^{-1}$). 43/43 benchmarks pass.
 
+- **[Harmonic-Scattering Loop Coupling](publication/harmonic-scattering-loop-coupling/harmonic-scattering-loop-coupling-map.tex)**
+  — builds a transfer-matrix framework for resolving multiple independent
+  sources through a single looped optical path in a polyatomic molecular
+  resonator. Proves the transfer-matrix rank equals the cycle rank $C$ of
+  the molecular harmonic graph plus one; derives the dephasing-bounded
+  capacity $N_{\max} = (C+1)\,T_{\mathrm{deph}}/T_L$. Machine-precision
+  reconstruction through a benzene-like resonator, within-class Spearman
+  $\rho_s = +0.96$ for the $\mu$--$n_r$ relation across seven H-bonding
+  liquids, sub-quadratic scaling $\kappa \propto C^{1.25}$ up to $C=10$.
+  18/18 benchmarks pass.
+
 Each paper ships with:
 - a CPU Python reference in `python/` for prototyping and validation,
 - a Rust crate in `rust/` for the production implementation,
@@ -243,6 +254,7 @@ Snapshot at time of writing:
 |---|---|---|---|
 | Shader-Based Astronomy | 10 | 10 / 10 | 4.3 × 10⁻³ |
 | Dimensionless $G$ | 43 | 43 / 43 | within bound $(d+1)^{-n}$ |
+| Harmonic-Scattering Loop Coupling | 18 | 18 / 18 | within $\kappa\sigma$ bound |
 
 ## 6. Status
 
