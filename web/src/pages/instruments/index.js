@@ -6,6 +6,18 @@ import Link from "next/link";
 
 const INSTRUMENTS = [
   {
+    slug: "moon",
+    name: "The Moon",
+    tagline: "Twelve lunar observables derived live — mass, orbit, tides, libration, regolith.",
+    status: "live",
+  },
+  {
+    slug: "solar-system",
+    name: "Solar System",
+    tagline: "Eight planets in 3D with live Kepler-third-law validation.",
+    status: "live",
+  },
+  {
     slug: "sky-survey",
     name: "Sky Survey",
     tagline: "Procedural 3D starfield. Select stars and watch a single ray resolve all of them.",

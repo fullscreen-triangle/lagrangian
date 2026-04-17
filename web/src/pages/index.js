@@ -41,20 +41,20 @@ export default function Home() {
               </p>
               <div className="mt-2 flex items-center gap-4 self-start flex-wrap lg:self-center">
                 <Link
-                  href="/instruments/sky-survey/"
+                  href="/instruments/solar-system/"
                   className="rounded-lg border-2 border-solid bg-dark p-2.5 px-6 text-lg font-semibold
                   capitalize text-light hover:border-dark hover:bg-transparent hover:text-dark
                   dark:bg-light dark:text-dark dark:hover:border-light dark:hover:bg-dark dark:hover:text-light
                   md:p-2 md:px-4 md:text-base"
                 >
-                  Observe the sky
+                  Enter the solar system
                 </Link>
                 <Link
-                  href="/instruments/"
+                  href="/instruments/moon/"
                   className="text-lg font-medium capitalize text-dark underline
                   dark:text-light md:text-base"
                 >
-                  All instruments
+                  See the Moon
                 </Link>
               </div>
             </div>
