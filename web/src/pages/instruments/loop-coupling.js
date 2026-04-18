@@ -1,7 +1,9 @@
-import Layout from "@/components/Layout";
-import TransitionEffect from "@/components/TransitionEffect";
 import Head from "next/head";
 import dynamic from "next/dynamic";
+import {
+  BackToHub,
+  InstrumentTitle,
+} from "@/components/InstrumentChrome";
 
 const LoopCouplingDemo = dynamic(
   () => import("@/components/instruments/LoopCouplingDemo"),
@@ -15,28 +17,18 @@ export default function LoopCouplingPage() {
         <title>Loop Coupling — Observatory</title>
         <meta
           name="description"
-          content="Multi-source resolution via path-multiplexed rays through polyatomic molecular resonators. Transfer-matrix inversion recovering multiple sources from a single looped ray."
+          content="Multi-source resolution via path-multiplexed rays through polyatomic molecular resonators."
         />
       </Head>
-      <TransitionEffect />
-      <main className="mb-16 flex w-full flex-col items-center justify-center dark:text-light">
-        <Layout className="pt-16">
-          <header className="mb-8">
-            <h1 className="text-5xl font-bold md:text-4xl sm:text-3xl">
-              Loop Coupling
-            </h1>
-            <p className="mt-4 max-w-3xl text-base font-medium md:text-sm">
-              A single optical path through a molecular resonator with closed
-              harmonic loops resolves multiple independent sources
-              simultaneously. The transfer matrix has rank equal to the cycle
-              rank of the molecular harmonic graph plus one. Select a molecule,
-              set the number of sources and noise level, and watch the
-              reconstruction.
-            </p>
-          </header>
-          <LoopCouplingDemo />
-        </Layout>
-      </main>
+      <div className="fixed inset-0 bg-black text-white overflow-auto">
+        <BackToHub />
+        <InstrumentTitle name="Loop Coupling" />
+        <div className="min-h-screen pt-20 pb-12 px-8 md:px-4">
+          <div className="max-w-5xl mx-auto">
+            <LoopCouplingDemo />
+          </div>
+        </div>
+      </div>
     </>
   );
 }

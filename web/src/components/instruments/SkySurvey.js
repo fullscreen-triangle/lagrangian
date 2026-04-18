@@ -3,133 +3,81 @@ import { OrbitControls } from "@react-three/drei";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import {
-  harmonicGraph,
-  cycleRank,
-  fundamentalCycles,
-  buildTransferMatrix,
-  solveLeastSquares,
-  conditionNumber,
-  MOLECULE_PRESETS,
-} from "@/lib/loop-coupling";
+  BRIGHT_STARS,
+  HEMISPHERE_PRESETS,
+  altAzToVec3,
+  generateBackgroundStars,
+  generateSatellites,
+  localSiderealTime,
+  moonRaDec,
+  planetRaDec,
+  raDecToAltAz,
+  satelliteRaDec,
+} from "@/lib/celestial-sky";
+import {
+  BackToHub,
+  CollapsiblePanel,
+  IdleHint,
+  InstrumentTitle,
+} from "@/components/InstrumentChrome";
 
-// ---- Procedural sky ----
+const PLANETS = ["Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"];
+const BG_STAR_COUNT = 1500;
+const SAT_COUNT = 300;
+const R_SKY = 100;
 
-function generateStars(count, seed = 1) {
-  const rng = mulberry32(seed);
-  const stars = [];
-  for (let i = 0; i < count; i++) {
-    // Uniform on sphere
-    const u = rng();
-    const v = rng();
-    const theta = 2 * Math.PI * u;
-    const phi = Math.acos(2 * v - 1);
-    const r = 50;
-    const pos = [
-      r * Math.sin(phi) * Math.cos(theta),
-      r * Math.sin(phi) * Math.sin(theta),
-      r * Math.cos(phi),
-    ];
-    // Magnitude: mostly faint, a few bright
-    const m = Math.pow(rng(), 3);
-    // Colour-temperature-like tint
-    const t = rng();
-    const color = [
-      0.7 + 0.3 * t,
-      0.8 + 0.15 * rng(),
-      1.0 - 0.3 * t,
-    ];
-    stars.push({ id: i, pos, magnitude: 0.3 + m * 0.7, color, selected: false });
-  }
-  return stars;
+// Convert (ra, dec) + observer → scene position on sphere of radius R_SKY.
+function skyPosition(ra, dec, latRad, lst) {
+  const { alt, az } = raDecToAltAz(ra, dec, latRad, lst);
+  const v = altAzToVec3(alt, az);
+  return [v.x * R_SKY, v.y * R_SKY, v.z * R_SKY, alt];
 }
 
-function mulberry32(seed) {
-  let s = seed >>> 0;
-  return () => {
-    s = (s + 0x6D2B79F5) >>> 0;
-    let t = s;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+function magnitudeToSize(mag, boost = 1) {
+  // Brighter stars have lower magnitude. Scale roughly as 2.512^(-mag).
+  return Math.max(0.5, 14 - 2.3 * mag) * boost;
 }
 
-// ---- Three.js components ----
+// ---- The big-point-field background stars ----
 
-function StarField({ stars, selected, onSelect }) {
-  const { camera } = useThree();
-  const meshRef = useRef();
-
-  // Build one instanced mesh for all stars
-  const positions = useMemo(() => {
-    const arr = new Float32Array(stars.length * 3);
-    stars.forEach((s, i) => {
-      arr[i * 3] = s.pos[0];
-      arr[i * 3 + 1] = s.pos[1];
-      arr[i * 3 + 2] = s.pos[2];
-    });
-    return arr;
-  }, [stars]);
-
-  const colors = useMemo(() => {
-    const arr = new Float32Array(stars.length * 3);
-    stars.forEach((s, i) => {
-      const isSel = selected.has(s.id);
-      const mag = s.magnitude * (isSel ? 2.5 : 1.0);
-      arr[i * 3] = s.color[0] * mag * (isSel ? 1.0 : 1.0);
-      arr[i * 3 + 1] = s.color[1] * mag * (isSel ? 0.6 : 1.0);
-      arr[i * 3 + 2] = s.color[2] * mag * (isSel ? 0.4 : 1.0);
-    });
-    return arr;
-  }, [stars, selected]);
-
-  const sizes = useMemo(() => {
-    const arr = new Float32Array(stars.length);
-    stars.forEach((s, i) => {
-      arr[i] = (selected.has(s.id) ? 1.4 : 0.6) + s.magnitude * 0.9;
-    });
-    return arr;
-  }, [stars, selected]);
-
-  const handleClick = (e) => {
-    e.stopPropagation();
-    // Find nearest star to the click
-    const mouse = new THREE.Vector2(
-      (e.point.x - camera.position.x),
-      (e.point.y - camera.position.y)
-    );
-    // Simpler: use the intersected index directly
-    const idx = e.index;
-    if (idx !== undefined && idx !== null && idx < stars.length) {
-      onSelect(stars[idx].id);
+function StarField({ bgStars, latRad, lst }) {
+  const { positions, colors, sizes, altitudes } = useMemo(() => {
+    const N = bgStars.length;
+    const pos = new Float32Array(N * 3);
+    const col = new Float32Array(N * 3);
+    const sz = new Float32Array(N);
+    const alt = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const s = bgStars[i];
+      const [x, y, z, a] = skyPosition(s.ra, s.dec, latRad, lst);
+      pos[i * 3] = x;
+      pos[i * 3 + 1] = y;
+      pos[i * 3 + 2] = z;
+      // Tint parsing
+      const m = s.tint.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+      const r = m ? +m[1] / 255 : 0.9;
+      const g = m ? +m[2] / 255 : 0.9;
+      const b = m ? +m[3] / 255 : 0.95;
+      col[i * 3] = r;
+      col[i * 3 + 1] = g;
+      col[i * 3 + 2] = b;
+      sz[i] = magnitudeToSize(s.mag, 0.7);
+      alt[i] = a;
     }
-  };
+    return { positions: pos, colors: col, sizes: sz, altitudes: alt };
+  }, [bgStars, latRad, lst]);
 
   return (
-    <points onClick={handleClick}>
+    <points>
       <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={stars.length}
-          array={positions}
-          itemSize={3}
-        />
-        <bufferAttribute
-          attach="attributes-color"
-          count={stars.length}
-          array={colors}
-          itemSize={3}
-        />
-        <bufferAttribute
-          attach="attributes-size"
-          count={stars.length}
-          array={sizes}
-          itemSize={1}
-        />
+        <bufferAttribute attach="attributes-position" count={bgStars.length} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-color" count={bgStars.length} array={colors} itemSize={3} />
+        <bufferAttribute attach="attributes-size" count={bgStars.length} array={sizes} itemSize={1} />
+        <bufferAttribute attach="attributes-alt" count={bgStars.length} array={altitudes} itemSize={1} />
       </bufferGeometry>
       <shaderMaterial
-        vertexShader={STAR_VERTEX}
-        fragmentShader={STAR_FRAGMENT}
+        vertexShader={STAR_VERT}
+        fragmentShader={STAR_FRAG}
         vertexColors
         transparent
         depthWrite={false}
@@ -138,287 +86,450 @@ function StarField({ stars, selected, onSelect }) {
   );
 }
 
-const STAR_VERTEX = `
+const STAR_VERT = `
 attribute float size;
+attribute float alt;
 varying vec3 vColor;
+varying float vAlt;
 void main() {
   vColor = color;
+  vAlt = alt;
   vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
   gl_Position = projectionMatrix * mvPosition;
   gl_PointSize = size * (300.0 / -mvPosition.z);
 }
 `;
 
-const STAR_FRAGMENT = `
+const STAR_FRAG = `
 varying vec3 vColor;
+varying float vAlt;
 void main() {
+  if (vAlt < 0.0) discard;
   vec2 uv = gl_PointCoord - 0.5;
   float d = length(uv);
   float a = smoothstep(0.5, 0.0, d);
-  a = pow(a, 2.0);
-  gl_FragColor = vec4(vColor, a);
+  a = pow(a, 2.2);
+  // Dim near horizon (atmospheric extinction proxy)
+  float horizonDim = clamp(vAlt * 4.0, 0.25, 1.0);
+  gl_FragColor = vec4(vColor, a * horizonDim);
 }
 `;
 
-function ApertureRay({ active, cycleRank }) {
-  const groupRef = useRef();
+// ---- Bright named stars (clickable spheres with labels) ----
 
-  useFrame((_, delta) => {
-    if (groupRef.current && active) groupRef.current.rotation.z += delta * 0.3;
-  });
-
-  if (!active) return null;
-
-  // Draw a loop that visits cycleRank+1 nodes around a circle
-  const loops = Math.max(1, cycleRank);
-  const points = [];
-  const N = 64;
-  for (let i = 0; i <= N; i++) {
-    const t = i / N;
-    const angle = t * Math.PI * 2 * loops;
-    const r = 2.5 + 0.6 * Math.sin(t * Math.PI * 2 * (loops + 1));
-    points.push(new THREE.Vector3(
-      r * Math.cos(angle),
-      r * Math.sin(angle),
-      0.4 * Math.sin(t * Math.PI * 2 * loops * 0.7),
-    ));
-  }
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
-
+function NamedStars({ latRad, lst, onPick }) {
+  const items = useMemo(() => {
+    return BRIGHT_STARS.map((s) => {
+      const [x, y, z, alt] = skyPosition(s.ra, s.dec, latRad, lst);
+      return { ...s, pos: [x, y, z], alt };
+    });
+  }, [latRad, lst]);
   return (
-    <group ref={groupRef}>
-      <line geometry={geometry}>
-        <lineBasicMaterial color="#ff4444" transparent opacity={0.75} />
-      </line>
+    <group>
+      {items.map((s) => (
+        s.alt > 0 && (
+          <mesh
+            key={s.name}
+            position={s.pos}
+            onPointerDown={(e) => { e.stopPropagation(); onPick({ type: "star", object: s }); }}
+            onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = "pointer"; }}
+            onPointerOut={() => { document.body.style.cursor = "default"; }}
+          >
+            <sphereGeometry args={[Math.max(0.6, 2.0 - s.mag * 0.4), 16, 8]} />
+            <meshBasicMaterial color={s.tint} transparent opacity={0.95} />
+          </mesh>
+        )
+      ))}
     </group>
   );
 }
 
-function SkyScene({ stars, selected, onSelect, cycleRankValue }) {
+// ---- Planets ----
+
+function PlanetSprites({ date, latRad, lst, onPick }) {
+  const items = useMemo(() => {
+    return PLANETS.map((name) => {
+      const rd = planetRaDec(name, date);
+      if (!rd) return null;
+      const [x, y, z, alt] = skyPosition(rd.ra, rd.dec, latRad, lst);
+      return { name, ra: rd.ra, dec: rd.dec, pos: [x, y, z], alt };
+    }).filter(Boolean);
+  }, [date.getTime(), latRad, lst]);
+
+  const PLANET_COLORS = {
+    Mercury: "#c6a378", Venus: "#f1dca7", Mars: "#dd6b4a",
+    Jupiter: "#d8b88a", Saturn: "#e6d3a3",
+    Uranus: "#a7e0ea", Neptune: "#6e93d7",
+  };
+
+  return (
+    <group>
+      {items.map((p) => p.alt > 0 && (
+        <mesh
+          key={p.name}
+          position={p.pos}
+          onPointerDown={(e) => { e.stopPropagation(); onPick({ type: "planet", object: p }); }}
+          onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = "pointer"; }}
+          onPointerOut={() => { document.body.style.cursor = "default"; }}
+        >
+          <sphereGeometry args={[p.name === "Jupiter" || p.name === "Saturn" ? 2.4 : 1.8, 16, 8]} />
+          <meshBasicMaterial color={PLANET_COLORS[p.name]} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// ---- Moon ----
+
+function MoonSprite({ date, latRad, lst, onPick }) {
+  const info = useMemo(() => {
+    const rd = moonRaDec(date);
+    const [x, y, z, alt] = skyPosition(rd.ra, rd.dec, latRad, lst);
+    return { pos: [x, y, z], alt, phase: rd.phase, ra: rd.ra, dec: rd.dec };
+  }, [date.getTime(), latRad, lst]);
+
+  if (info.alt <= 0) return null;
+  return (
+    <mesh
+      position={info.pos}
+      onPointerDown={(e) => { e.stopPropagation(); onPick({ type: "moon", object: { name: "Moon", ...info } }); }}
+      onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = "pointer"; }}
+      onPointerOut={() => { document.body.style.cursor = "default"; }}
+    >
+      <sphereGeometry args={[3.0, 24, 12]} />
+      <meshBasicMaterial color="#dedede" />
+    </mesh>
+  );
+}
+
+// ---- Satellite layer (animated) ----
+
+function SatelliteLayer({ sats, tRef, latRad, lst, onPick }) {
+  const meshRef = useRef();
+  const pickRef = useRef();
+  const [positions, setPositions] = useState(() => new Float32Array(sats.length * 3));
+  const [colors, setColors] = useState(() => new Float32Array(sats.length * 3));
+  const [sizes, setSizes] = useState(() => new Float32Array(sats.length));
+  const [altitudes, setAltitudes] = useState(() => new Float32Array(sats.length));
+
+  useFrame(() => {
+    const t = tRef.current;
+    const pos = new Float32Array(sats.length * 3);
+    const col = new Float32Array(sats.length * 3);
+    const sz = new Float32Array(sats.length);
+    const alt = new Float32Array(sats.length);
+    for (let i = 0; i < sats.length; i++) {
+      const s = sats[i];
+      const rd = satelliteRaDec(s, t);
+      const [x, y, z, a] = skyPosition(rd.ra, rd.dec, latRad, lst);
+      pos[i * 3] = x;
+      pos[i * 3 + 1] = y;
+      pos[i * 3 + 2] = z;
+      alt[i] = a;
+      const isDebris = s.kind === "debris";
+      col[i * 3] = isDebris ? 0.7 : 0.9;
+      col[i * 3 + 1] = isDebris ? 0.7 : 1.0;
+      col[i * 3 + 2] = isDebris ? 0.75 : 0.85;
+      sz[i] = isDebris ? 1.2 : 2.4;
+    }
+    setPositions(pos);
+    setColors(col);
+    setSizes(sz);
+    setAltitudes(alt);
+  });
+
+  return (
+    <points
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        if (e.index !== undefined && e.index !== null) {
+          const s = sats[e.index];
+          onPick({ type: s.kind, object: { ...s, name: `${s.kind.toUpperCase()} #${e.index}` } });
+        }
+      }}
+    >
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={sats.length} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-color" count={sats.length} array={colors} itemSize={3} />
+        <bufferAttribute attach="attributes-size" count={sats.length} array={sizes} itemSize={1} />
+        <bufferAttribute attach="attributes-alt" count={sats.length} array={altitudes} itemSize={1} />
+      </bufferGeometry>
+      <shaderMaterial
+        vertexShader={STAR_VERT}
+        fragmentShader={STAR_FRAG}
+        vertexColors
+        transparent
+        depthWrite={false}
+      />
+    </points>
+  );
+}
+
+// ---- Horizon ring + cardinal letters ----
+
+function HorizonRing() {
+  const geometry = useMemo(() => {
+    const N = 256;
+    const pts = [];
+    for (let i = 0; i <= N; i++) {
+      const a = (i / N) * 2 * Math.PI;
+      pts.push(new THREE.Vector3(Math.sin(a) * R_SKY, 0.1, Math.cos(a) * R_SKY));
+    }
+    return new THREE.BufferGeometry().setFromPoints(pts);
+  }, []);
+  return (
+    <line geometry={geometry}>
+      <lineBasicMaterial color="#446" transparent opacity={0.8} />
+    </line>
+  );
+}
+
+function CardinalLabels() {
+  const letters = [
+    { txt: "N", pos: [0, 0.2, R_SKY] },
+    { txt: "E", pos: [R_SKY, 0.2, 0] },
+    { txt: "S", pos: [0, 0.2, -R_SKY] },
+    { txt: "W", pos: [-R_SKY, 0.2, 0] },
+  ];
+  return (
+    <group>
+      {letters.map((l) => (
+        <mesh key={l.txt} position={l.pos}>
+          <sphereGeometry args={[1.2, 8, 4]} />
+          <meshBasicMaterial color="#ffaa00" />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// ---- Scene wrapper ----
+
+function Scene({ bgStars, latRad, lst, date, tRef, sats, onPick }) {
   return (
     <Canvas
-      camera={{ position: [0, 0, 0.1], fov: 75 }}
-      gl={{ antialias: true, alpha: true }}
-      style={{ background: "radial-gradient(ellipse at center, #0a0e1a 0%, #000000 100%)" }}
+      camera={{ position: [0, 0, 0.1], fov: 75, near: 0.01, far: 400 }}
+      gl={{ antialias: true, alpha: false }}
+      style={{ background: "radial-gradient(ellipse at bottom, #0b1020 0%, #03050a 60%, #000000 100%)" }}
     >
       <ambientLight intensity={0.1} />
       <Suspense fallback={null}>
-        <StarField stars={stars} selected={selected} onSelect={onSelect} />
-        <ApertureRay active={selected.size > 0} cycleRank={cycleRankValue} />
+        <HorizonRing />
+        <CardinalLabels />
+        <StarField bgStars={bgStars} latRad={latRad} lst={lst} />
+        <NamedStars latRad={latRad} lst={lst} onPick={onPick} />
+        <PlanetSprites date={date} latRad={latRad} lst={lst} onPick={onPick} />
+        <MoonSprite date={date} latRad={latRad} lst={lst} onPick={onPick} />
+        <SatelliteLayer sats={sats} tRef={tRef} latRad={latRad} lst={lst} onPick={onPick} />
       </Suspense>
       <OrbitControls
         enablePan={false}
         enableZoom={false}
         rotateSpeed={-0.35}
-        autoRotate
-        autoRotateSpeed={0.08}
+        target={[0, 0.0001, 0]}
       />
     </Canvas>
   );
 }
 
-// ---- Observation runner ----
+// ---- Object-info sidebar ----
 
-function runObservation(omega, edges, selectedStars, noiseLevel) {
-  const K = Math.min(selectedStars.length, cycleRank(omega.length, edges) + 1);
-  if (K < 1) return null;
+function ObjectInfo({ selection }) {
+  if (!selection) {
+    return (
+      <div className="text-xs font-mono text-white/60">
+        <p className="mb-2 uppercase tracking-widest">nothing selected</p>
+        <p>Click any object in the sky — bright stars, planets, Moon, satellites, or debris.</p>
+      </div>
+    );
+  }
+  const { type, object } = selection;
+  const rows = [];
+  const deg = (r) => (r * 180 / Math.PI).toFixed(2);
 
-  const meanOmega = omega.reduce((a, b) => a + b, 0) / omega.length;
-  const sources = selectedStars.slice(0, K).map((s, k) => ({
-    direction: s.pos.map((x) => x / Math.sqrt(s.pos[0] ** 2 + s.pos[1] ** 2 + s.pos[2] ** 2)),
-    wavelength: (1.0 / (meanOmega * 1e-4)) * (0.7 + 0.6 * k / Math.max(K - 1, 1)),
-    trueAmplitude: s.magnitude,
-    id: s.id,
-  }));
+  rows.push(["Type", type.toUpperCase()]);
+  if (object.name) rows.push(["Name", object.name]);
+  if (object.mag !== undefined) rows.push(["Magnitude", object.mag.toFixed(2)]);
+  if (object.dist_ly !== undefined) rows.push(["Distance", `${object.dist_ly.toLocaleString()} ly`]);
+  if (object.ra !== undefined) rows.push(["Right ascension", `${deg(object.ra)}°`]);
+  if (object.dec !== undefined) rows.push(["Declination", `${deg(object.dec)}°`]);
+  if (object.altitude !== undefined) rows.push(["Altitude above Earth", `${Math.round(object.altitude)} km`]);
+  if (object.period !== undefined) rows.push(["Orbital period", `${(object.period / 60).toFixed(1)} min`]);
+  if (object.inclination !== undefined) rows.push(["Inclination", `${deg(object.inclination)}°`]);
+  if (object.phase !== undefined) rows.push(["Phase", `${(object.phase * 100).toFixed(0)}% of synodic cycle`]);
+  if (object.tint) rows.push(["Spectral tint", object.tint]);
 
-  const A = buildTransferMatrix(omega, edges, sources);
-  const sTrue = sources.map((s) => s.trueAmplitude);
-  const IClean = A.map((row) =>
-    row.reduce((sum, a, k) => sum + a * sTrue[k], 0)
+  return (
+    <div className="text-xs font-mono">
+      <p className="mb-3 text-base font-bold">{object.name || type}</p>
+      <div className="space-y-1">
+        {rows.map(([k, v]) => (
+          <div key={k} className="flex justify-between gap-3 border-b border-white/10 pb-1">
+            <span className="text-white/50">{k}</span>
+            <span className="text-right">{v}</span>
+          </div>
+        ))}
+      </div>
+      {type === "star" && object.name && (
+        <p className="mt-3 text-white/60">
+          Catalogued main-sequence or giant. Position is J2000 equatorial; the
+          observer frame rotation is applied live so the object moves with
+          sidereal time.
+        </p>
+      )}
+      {type === "planet" && (
+        <p className="mt-3 text-white/60">
+          Position from simplified ecliptic elements propagated from J2000.
+          Kepler-III-consistent orbit assumed circular.
+        </p>
+      )}
+      {(type === "LEO sat" || type === "MEO" || type === "GEO" || type === "debris") && (
+        <p className="mt-3 text-white/60">
+          Synthetic constellation member — orbital elements drawn randomly
+          from realistic distributions. Moves in real time as you watch.
+        </p>
+      )}
+    </div>
   );
-  const sigma = Math.pow(10, noiseLevel);
-  const INoisy = IClean.map((v) => v + (Math.random() - 0.5) * 2 * sigma * Math.abs(v));
-  const sHat = solveLeastSquares(A, INoisy);
-  const kappa = conditionNumber(A);
-
-  return {
-    sources,
-    sTrue,
-    sHat,
-    kappa,
-    sigma,
-    K,
-  };
 }
 
-// ---- Main component ----
+// ---- Main ----
 
 export default function SkySurvey() {
-  const [stars] = useState(() => generateStars(800));
-  const [selected, setSelected] = useState(new Set());
-  const [molecule, setMolecule] = useState("Benzene");
-  const [noiseLevel, setNoiseLevel] = useState(-4);
+  const [presetName, setPresetName] = useState("London (51°N)");
+  const preset = HEMISPHERE_PRESETS[presetName];
+  const [lat, setLat] = useState(preset.lat);
+  const [lon, setLon] = useState(preset.lon);
+  const [dateState, setDateState] = useState(() => new Date());
+  const [timeRate, setTimeRate] = useState(60); // sim seconds per wall second
+  const dateRef = useRef(dateState);
+  const tRef = useRef(0);
+  const [selection, setSelection] = useState(null);
 
-  const omega = MOLECULE_PRESETS[molecule];
-  const graph = useMemo(() => {
-    const edges = harmonicGraph(omega);
-    return { edges, C: cycleRank(omega.length, edges) };
-  }, [molecule]);
+  const bgStars = useMemo(() => generateBackgroundStars(BG_STAR_COUNT), []);
+  const sats = useMemo(() => generateSatellites(SAT_COUNT), []);
 
-  const onSelect = useCallback((id) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else if (next.size < graph.C + 1) next.add(id);
-      return next;
-    });
-  }, [graph.C]);
+  // Advance sim time
+  useEffect(() => {
+    let last = performance.now();
+    let raf;
+    const step = () => {
+      const now = performance.now();
+      const dt = (now - last) / 1000;
+      last = now;
+      dateRef.current = new Date(dateRef.current.getTime() + dt * timeRate * 1000);
+      setDateState(dateRef.current);
+      tRef.current += dt * timeRate;
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [timeRate]);
 
-  const clearSelection = () => setSelected(new Set());
+  // When preset changes, set lat/lon
+  useEffect(() => {
+    setLat(preset.lat);
+    setLon(preset.lon);
+  }, [presetName]);
 
-  const selectedStars = useMemo(
-    () => stars.filter((s) => selected.has(s.id)),
-    [stars, selected]
-  );
+  const latRad = (lat * Math.PI) / 180;
+  const lst = useMemo(() => localSiderealTime(dateState, lon), [dateState, lon]);
 
-  const result = useMemo(
-    () => runObservation(omega, graph.edges, selectedStars, noiseLevel),
-    [omega, graph.edges, selectedStars, noiseLevel]
-  );
+  const onPick = useCallback((sel) => setSelection(sel), []);
 
   return (
-    <div className="flex w-full flex-col gap-6">
-      {/* Sky canvas */}
-      <div className="relative aspect-video w-full overflow-hidden rounded-2xl border-2 border-solid border-dark dark:border-light bg-black">
-        <SkyScene
-          stars={stars}
-          selected={selected}
-          onSelect={onSelect}
-          cycleRankValue={graph.C}
-        />
-        <div className="absolute top-3 left-3 rounded-md bg-black/70 px-3 py-2 text-xs text-white font-mono">
-          <div>stars: {stars.length}</div>
-          <div>selected: {selected.size} / {graph.C + 1}</div>
+    <>
+      <Scene
+        bgStars={bgStars}
+        latRad={latRad}
+        lst={lst}
+        date={dateState}
+        tRef={tRef}
+        sats={sats}
+        onPick={onPick}
+      />
+
+      <BackToHub />
+      <InstrumentTitle name="Sky Survey" />
+      <IdleHint text="drag to look around — click any object" />
+
+      {/* Top-right live info */}
+      <div className="fixed top-4 right-4 z-40 rounded-md bg-black/60 backdrop-blur-sm px-3 py-2 text-[11px] font-mono text-white/80 pointer-events-none">
+        <div>{presetName}</div>
+        <div className="text-white/50">
+          lat {lat.toFixed(2)}°, lon {lon.toFixed(2)}°
         </div>
-        <div className="absolute top-3 right-3 rounded-md bg-black/70 px-3 py-2 text-xs text-white font-mono max-w-[220px]">
-          click stars to add to the aperture. drag to pan, scroll locked.
-        </div>
-        {selected.size > 0 && (
-          <button
-            onClick={clearSelection}
-            className="absolute bottom-3 right-3 rounded bg-red-600 px-3 py-1 text-xs text-white font-mono hover:bg-red-700"
-          >
-            clear
-          </button>
-        )}
+        <div className="text-white/50">{dateState.toISOString().replace("T", " ").slice(0, 19)} UTC</div>
+        <div className="text-white/50">LST {(lst * 12 / Math.PI).toFixed(3)} h</div>
       </div>
 
-      {/* Controls */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-1">
-        <div>
-          <label className="block text-xs uppercase tracking-widest text-dark/60 dark:text-light/60 mb-1">
-            Molecular resonator (sets max sources K = C+1 = {graph.C + 1})
-          </label>
-          <select
-            value={molecule}
-            onChange={(e) => { setMolecule(e.target.value); clearSelection(); }}
-            className="w-full rounded-md border border-dark/30 dark:border-light/30 bg-light dark:bg-dark px-3 py-2 text-sm"
-          >
-            {Object.keys(MOLECULE_PRESETS).map((m) => (
-              <option key={m} value={m}>
-                {m} ({MOLECULE_PRESETS[m].length} modes, C = {cycleRank(MOLECULE_PRESETS[m].length, harmonicGraph(MOLECULE_PRESETS[m]))})
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs uppercase tracking-widest text-dark/60 dark:text-light/60 mb-1">
-            Detector noise (log10)
-          </label>
-          <input
-            type="range"
-            min={-12}
-            max={-1}
-            step={1}
-            value={noiseLevel}
-            onChange={(e) => setNoiseLevel(Number(e.target.value))}
-            className="w-full"
-          />
-          <span className="text-sm font-mono">10<sup>{noiseLevel}</sup></span>
-        </div>
-      </div>
-
-      {/* Results */}
-      {result && (
-        <div className="rounded-xl border border-dark/30 dark:border-light/30 p-4">
-          <div className="text-xs uppercase tracking-widest text-dark/60 dark:text-light/60 mb-3">
-            Simultaneous multi-source resolution through a single looped ray
+      {/* Observer panel — left side */}
+      <CollapsiblePanel side="left" label="observer" defaultOpen={false}>
+        <div className="space-y-4 text-xs font-mono">
+          <p className="text-sm font-bold">Observer</p>
+          <div>
+            <label className="block text-[10px] uppercase tracking-widest text-white/50 mb-1">
+              location
+            </label>
+            <select
+              value={presetName}
+              onChange={(e) => setPresetName(e.target.value)}
+              className="w-full bg-black/60 border border-white/20 rounded px-2 py-1"
+            >
+              {Object.keys(HEMISPHERE_PRESETS).map((k) => (
+                <option key={k} value={k}>{k}</option>
+              ))}
+            </select>
+            <div className="mt-1 text-white/50">{preset.label} hemisphere</div>
           </div>
-          <div className="grid grid-cols-3 gap-3 font-mono text-sm mb-4 md:grid-cols-1">
-            <Card label="Sources observed" value={result.K} />
-            <Card label="Condition number" value={result.kappa.toFixed(1)} />
-            <Card
-              label="Mean reconstruction error"
-              value={(
-                result.sTrue.reduce((s, v, i) => s + Math.abs(v - result.sHat[i]), 0) /
-                result.K
-              ).toExponential(2)}
+          <div>
+            <label className="block text-[10px] uppercase tracking-widest text-white/50 mb-1">
+              latitude ({lat.toFixed(1)}°)
+            </label>
+            <input
+              type="range" min={-89} max={89} step={0.5}
+              value={lat}
+              onChange={(e) => setLat(Number(e.target.value))}
+              className="w-full"
             />
           </div>
-          <div className="flex items-end gap-3 h-32 px-2">
-            {result.sources.map((src, k) => (
-              <div key={src.id} className="flex flex-col items-center flex-1 gap-1">
-                <div className="flex items-end gap-0.5 w-full h-24">
-                  <div
-                    className="flex-1 bg-yellow-300 rounded-t border border-yellow-500"
-                    style={{ height: `${result.sTrue[k] * 100}%` }}
-                    title={`true: ${result.sTrue[k].toFixed(3)}`}
-                  />
-                  <div
-                    className="flex-1 bg-red-500 rounded-t opacity-80"
-                    style={{
-                      height: `${Math.min(Math.abs(result.sHat[k]), 2) * 50}%`,
-                    }}
-                    title={`recovered: ${result.sHat[k].toFixed(3)}`}
-                  />
-                </div>
-                <span className="text-[10px] font-mono">★{src.id}</span>
-              </div>
-            ))}
+          <div>
+            <label className="block text-[10px] uppercase tracking-widest text-white/50 mb-1">
+              longitude ({lon.toFixed(1)}°)
+            </label>
+            <input
+              type="range" min={-180} max={180} step={1}
+              value={lon}
+              onChange={(e) => setLon(Number(e.target.value))}
+              className="w-full"
+            />
           </div>
-          <div className="flex gap-4 mt-3 text-xs">
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-3 h-3 bg-yellow-300 border border-yellow-500 rounded-sm" />
-              true star brightness
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-3 h-3 bg-red-500 rounded-sm opacity-80" />
-              recovered (single aperture ray)
-            </span>
+          <div>
+            <label className="block text-[10px] uppercase tracking-widest text-white/50 mb-1">
+              time rate (sim s / wall s)
+            </label>
+            <input
+              type="range" min={-3} max={4} step={0.1}
+              value={Math.log10(Math.max(timeRate, 0.001))}
+              onChange={(e) => setTimeRate(Math.pow(10, Number(e.target.value)))}
+              className="w-full"
+            />
+            <div className="text-white/50 mt-1">{timeRate.toFixed(1)} ×</div>
           </div>
+          <button
+            onClick={() => { dateRef.current = new Date(); setDateState(new Date()); }}
+            className="w-full bg-white/10 hover:bg-white/20 rounded px-2 py-1 border border-white/20"
+          >
+            reset clock to now
+          </button>
         </div>
-      )}
+      </CollapsiblePanel>
 
-      <p className="max-w-3xl text-sm text-dark/70 dark:text-light/70">
-        The yellow bars are true intrinsic brightnesses of the stars you
-        picked. The red bars are what the framework recovers from a single
-        looped ray passing through the selected molecular resonator. A
-        classical aperture would resolve one star per ray bundle; here all
-        <span className="font-mono"> K = C + 1 </span> sources come out of
-        one ray. Increase the noise slider to see the reconstruction
-        degrade gracefully at the rate predicted by the condition number.
-      </p>
-    </div>
-  );
-}
-
-function Card({ label, value }) {
-  return (
-    <div className="rounded-md border border-dark/30 dark:border-light/30 px-3 py-2">
-      <div className="text-[10px] uppercase tracking-widest text-dark/50 dark:text-light/50">
-        {label}
-      </div>
-      <div className="mt-1 text-lg font-bold">{value}</div>
-    </div>
+      {/* Object-info panel — right side */}
+      <CollapsiblePanel side="right" label="object" defaultOpen={!!selection}>
+        <ObjectInfo selection={selection} />
+      </CollapsiblePanel>
+    </>
   );
 }

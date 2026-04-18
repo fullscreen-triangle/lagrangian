@@ -3,13 +3,18 @@ import { OrbitControls } from "@react-three/drei";
 import { Suspense, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { moonObservables } from "@/lib/celestial";
+import {
+  BackToHub,
+  CollapsiblePanel,
+  IdleHint,
+  InstrumentTitle,
+} from "@/components/InstrumentChrome";
 
 // ---- Procedural Moon ----
 
 function MoonSphere({ phase }) {
   const meshRef = useRef();
 
-  // Generate a displaced sphere geometry once; cratering via noise.
   const geometry = useMemo(() => {
     const geom = new THREE.SphereGeometry(1, 128, 64);
     const pos = geom.attributes.position;
@@ -24,7 +29,6 @@ function MoonSphere({ phase }) {
     return geom;
   }, []);
 
-  // Per-vertex colour for mare vs highland tint, baked from the same noise.
   const colors = useMemo(() => {
     const pos = geometry.attributes.position;
     const arr = new Float32Array(pos.count * 3);
@@ -55,36 +59,29 @@ function MoonSphere({ phase }) {
           count={colors.length / 3}
           itemSize={3}
         />
-        <meshStandardMaterial
-          vertexColors
-          roughness={0.95}
-          metalness={0.02}
-        />
+        <meshStandardMaterial vertexColors roughness={0.95} metalness={0.02} />
       </mesh>
     </group>
   );
 }
 
-// Simple value-noise-based surface displacement.
 function hash(x, y, z) {
   const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
   return s - Math.floor(s);
 }
-
 function craterNoise(x, y, z) {
-  // Sum of sinusoids simulating craters + ridges
-  const f1 = Math.sin(x * 12.3) * Math.cos(y * 14.7) * Math.sin(z * 11.9);
-  const f2 = Math.sin(x * 28.4 + z * 5.1) * Math.sin(y * 25.3);
-  const f3 = (hash(x * 8, y * 8, z * 8) - 0.5) * 0.5;
-  return 0.4 * f1 + 0.35 * f2 + 0.25 * f3;
+  return (
+    0.4 * Math.sin(x * 12.3) * Math.cos(y * 14.7) * Math.sin(z * 11.9) +
+    0.35 * Math.sin(x * 28.4 + z * 5.1) * Math.sin(y * 25.3) +
+    0.25 * (hash(x * 8, y * 8, z * 8) - 0.5) * 0.5
+  );
 }
-
 function lowFreqNoise(x, y, z) {
-  return Math.sin(x * 2.3) * Math.cos(y * 1.7) * Math.sin(z * 2.1)
-       + 0.5 * Math.sin(x * 4.3 + z * 2.1) * Math.cos(y * 3.9);
+  return (
+    Math.sin(x * 2.3) * Math.cos(y * 1.7) * Math.sin(z * 2.1) +
+    0.5 * Math.sin(x * 4.3 + z * 2.1) * Math.cos(y * 3.9)
+  );
 }
-
-// ---- Eclipse shadow indicator ----
 
 function EarthShadow({ phase, showShadow }) {
   if (!showShadow) return null;
@@ -92,12 +89,7 @@ function EarthShadow({ phase, showShadow }) {
   return (
     <mesh position={[0, 0, -2.5]}>
       <coneGeometry args={[0.3, 1.5, 32, 1, true]} />
-      <meshBasicMaterial
-        color="#000000"
-        transparent
-        opacity={0.4 * intensity}
-        side={THREE.DoubleSide}
-      />
+      <meshBasicMaterial color="#000000" transparent opacity={0.4 * intensity} side={THREE.DoubleSide} />
     </mesh>
   );
 }
@@ -109,121 +101,90 @@ export default function MoonInstrument() {
   const [phase, setPhase] = useState(0);
   const [showShadow, setShowShadow] = useState(false);
 
-  const totalError = observables.reduce((s, o) => s + o.error, 0) / observables.length;
+  const meanError = observables.reduce((s, o) => s + o.error, 0) / observables.length;
   const maxError = Math.max(...observables.map((o) => o.error));
 
   return (
-    <div className="flex w-full flex-col gap-6">
-      <div className="grid grid-cols-2 gap-6 md:grid-cols-1">
-        {/* 3D Moon */}
-        <div className="relative aspect-square w-full overflow-hidden rounded-2xl border-2 border-solid border-dark dark:border-light bg-black">
-          <Canvas
-            camera={{ position: [0, 0, 3], fov: 35 }}
-            gl={{ antialias: true }}
-          >
-            <ambientLight intensity={0.12} />
-            <directionalLight position={[5, 2, 3]} intensity={1.5} />
-            <Suspense fallback={null}>
-              <MoonSphere phase={phase} />
-              <EarthShadow phase={phase} showShadow={showShadow} />
-            </Suspense>
-            <OrbitControls
-              enablePan={false}
-              enableZoom
-              minDistance={1.6}
-              maxDistance={5}
-              rotateSpeed={0.5}
-            />
-          </Canvas>
-          <div className="absolute top-3 left-3 rounded-md bg-black/60 px-3 py-2 text-xs text-white font-mono">
-            procedural, derived from partition geometry
-          </div>
-        </div>
-
-        {/* Derived-observable panel */}
-        <div className="rounded-2xl border-2 border-solid border-dark dark:border-light p-4">
-          <div className="flex items-baseline justify-between mb-3">
-            <h3 className="font-bold">Derived observables</h3>
-            <span className="text-xs font-mono text-dark/60 dark:text-light/60">
-              mean err: {(totalError * 100).toFixed(2)}% · max: {(maxError * 100).toFixed(1)}%
-            </span>
-          </div>
-          <div className="overflow-y-auto max-h-[360px]">
-            <table className="w-full text-xs font-mono">
-              <thead className="border-b border-dark/20 dark:border-light/20">
-                <tr className="text-left">
-                  <th className="py-1 pr-2 font-normal text-dark/50 dark:text-light/50">Quantity</th>
-                  <th className="py-1 pr-2 font-normal text-dark/50 dark:text-light/50 text-right">Derived</th>
-                  <th className="py-1 pr-2 font-normal text-dark/50 dark:text-light/50 text-right">Observed</th>
-                  <th className="py-1 font-normal text-dark/50 dark:text-light/50 text-right">Δ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {observables.map((o) => (
-                  <tr key={o.name} className="border-b border-dark/10 dark:border-light/10">
-                    <td className="py-1 pr-2">{o.name}</td>
-                    <td className="py-1 pr-2 text-right">
-                      {formatNum(o.derived)} <span className="text-dark/40">{o.unit}</span>
-                    </td>
-                    <td className="py-1 pr-2 text-right">
-                      {formatNum(o.observed)} <span className="text-dark/40">{o.unit}</span>
-                    </td>
-                    <td className={`py-1 text-right ${o.error < 0.05 ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}>
-                      {(o.error * 100).toFixed(2)}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+    <>
+      {/* Fullscreen canvas */}
+      <div className="fixed inset-0">
+        <Canvas
+          camera={{ position: [0, 0, 3], fov: 35 }}
+          gl={{ antialias: true }}
+          style={{ background: "radial-gradient(ellipse at center, #0a0e1a 0%, #000000 100%)" }}
+        >
+          <ambientLight intensity={0.12} />
+          <directionalLight position={[5, 2, 3]} intensity={1.5} />
+          <Suspense fallback={null}>
+            <MoonSphere phase={phase} />
+            <EarthShadow phase={phase} showShadow={showShadow} />
+          </Suspense>
+          <OrbitControls enablePan={false} enableZoom minDistance={1.6} maxDistance={6} rotateSpeed={0.5} />
+        </Canvas>
       </div>
 
-      {/* Phase control */}
-      <div className="rounded-xl border border-dark/30 dark:border-light/30 p-4">
-        <label className="block text-xs uppercase tracking-widest text-dark/60 dark:text-light/60 mb-2">
-          Lunar phase (orbital position)
-        </label>
-        <input
-          type="range"
-          min={0}
-          max={2 * Math.PI}
-          step={0.01}
-          value={phase}
-          onChange={(e) => setPhase(Number(e.target.value))}
-          className="w-full"
-        />
-        <div className="flex justify-between text-xs font-mono mt-1">
-          <span>new</span>
-          <span>first quarter</span>
-          <span>full</span>
-          <span>last quarter</span>
-          <span>new</span>
-        </div>
-        <div className="mt-3 flex items-center gap-3">
+      <BackToHub />
+      <InstrumentTitle name="The Moon" />
+      <IdleHint text="drag to rotate · scroll to zoom · open panels at the edges" />
+
+      {/* Top-right summary */}
+      <div className="fixed top-4 right-4 z-40 rounded-md bg-black/60 backdrop-blur-sm px-3 py-2 text-[11px] font-mono text-white/80 pointer-events-none">
+        <div>{observables.length} observables derived</div>
+        <div className="text-white/50">mean err {(meanError * 100).toFixed(2)}% · max {(maxError * 100).toFixed(1)}%</div>
+      </div>
+
+      {/* Left panel: controls */}
+      <CollapsiblePanel side="left" label="controls" defaultOpen={false}>
+        <div className="space-y-4 text-xs font-mono">
+          <p className="text-sm font-bold">Orbital phase</p>
           <input
-            type="checkbox"
-            id="shadow"
-            checked={showShadow}
-            onChange={(e) => setShowShadow(e.target.checked)}
+            type="range" min={0} max={2 * Math.PI} step={0.01}
+            value={phase} onChange={(e) => setPhase(Number(e.target.value))}
+            className="w-full"
           />
-          <label htmlFor="shadow" className="text-sm">
-            Show Earth&apos;s umbral shadow at opposition (eclipse geometry)
+          <div className="flex justify-between text-[10px] text-white/50">
+            <span>new</span><span>1Q</span><span>full</span><span>3Q</span><span>new</span>
+          </div>
+          <label className="flex items-center gap-2 pt-2">
+            <input type="checkbox" checked={showShadow} onChange={(e) => setShowShadow(e.target.checked)} />
+            <span>Earth umbral shadow (eclipse)</span>
           </label>
         </div>
-      </div>
+      </CollapsiblePanel>
 
-      <p className="max-w-3xl text-sm text-dark/70 dark:text-light/70">
-        Every derived value above is computed in your browser from the
-        partition framework&apos;s own formulas — no lookup, no observational
-        dataset fed in. The surface is procedurally generated from a noise
-        displacement; the mare-and-highland tinting is baked from a
-        low-frequency field. When the shadow cone is enabled, the geometry
-        of a total lunar eclipse at opposition becomes visible. Framework
-        predictions meet published observations with mean error below 5%
-        across all twelve quantities.
-      </p>
-    </div>
+      {/* Right panel: derived observables table */}
+      <CollapsiblePanel side="right" label="observables" defaultOpen={true}>
+        <div className="text-xs font-mono">
+          <p className="text-sm font-bold mb-3">Derived observables</p>
+          <p className="text-white/50 mb-3">
+            Every value below is computed in your browser from the framework&apos;s
+            formulas — no observational input.
+          </p>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-white/15 text-white/50 text-left text-[10px]">
+                <th className="py-1 pr-2 font-normal">Quantity</th>
+                <th className="py-1 pr-2 font-normal text-right">Derived</th>
+                <th className="py-1 font-normal text-right">Δ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {observables.map((o) => (
+                <tr key={o.name} className="border-b border-white/10">
+                  <td className="py-1 pr-2">{o.name}</td>
+                  <td className="py-1 pr-2 text-right">
+                    {formatNum(o.derived)} <span className="text-white/40">{o.unit}</span>
+                  </td>
+                  <td className={`py-1 text-right ${o.error < 0.05 ? "text-green-400" : "text-amber-400"}`}>
+                    {(o.error * 100).toFixed(2)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CollapsiblePanel>
+    </>
   );
 }
 

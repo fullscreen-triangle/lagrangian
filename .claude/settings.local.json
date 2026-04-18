@@ -4,7 +4,8 @@
       "Bash(PYTHONPATH=src PYTHONIOENCODING=utf-8 python -m gthree.plots --output-dir ../figures)",
       "Bash(PYTHONPATH=src PYTHONIOENCODING=utf-8 python -m loop_coupling.cli --output-dir ../output)",
       "Bash(python -c ' *)",
-      "Bash(PYTHONPATH=src PYTHONIOENCODING=utf-8 python -m loop_coupling.plots --output-dir ../figures)"
+      "Bash(PYTHONPATH=src PYTHONIOENCODING=utf-8 python -m loop_coupling.plots --output-dir ../figures)",
+      "Bash(npm run *)"
     ]
   }
 }

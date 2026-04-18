@@ -1,4 +1,9 @@
-# Observatory
+<h1 align="center">Lagrangian</h1>
+<p align="center"><em>Fundamental Station and Cosmic Observatory</em></p>
+
+<p align="center">
+  <img src="./assets/img/Joseph_Louis_Lagrange2.jpg" alt="Logo" width="300"/>
+</p>
 
 A framework in which **shaders are the instruments**. The GPU does not
 render someone else's measurement; it performs the measurement. This

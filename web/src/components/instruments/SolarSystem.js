@@ -10,6 +10,12 @@ import {
   YEAR,
   planetaryRadii,
 } from "@/lib/celestial";
+import {
+  BackToHub,
+  CollapsiblePanel,
+  IdleHint,
+  InstrumentTitle,
+} from "@/components/InstrumentChrome";
 
 // Visualisation scale — the real solar system is impractically anisotropic.
 // We compress outer planets logarithmically so all eight are visible.
@@ -197,8 +203,8 @@ export default function SolarSystem() {
   useEffect(() => { timeScaleRef.current = timeScale; }, [timeScale]);
 
   return (
-    <div className="flex w-full flex-col gap-6">
-      <div className="relative aspect-video w-full overflow-hidden rounded-2xl border-2 border-solid border-dark dark:border-light bg-black">
+    <>
+      <div className="fixed inset-0">
         <Scene
           planets={planets}
           simTime={simTime}
@@ -206,19 +212,25 @@ export default function SolarSystem() {
           selected={selected}
           onSelect={setSelected}
         />
-        <div className="absolute top-3 left-3 rounded-md bg-black/70 px-3 py-2 text-xs text-white font-mono">
-          click a planet · drag to orbit · wheel to zoom
-        </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 md:grid-cols-1">
-        <div className="col-span-2 md:col-span-1">
-          <PlanetInfo name={selected} />
-        </div>
-        <div className="rounded-xl border border-dark/30 dark:border-light/30 p-4">
-          <label className="block text-xs uppercase tracking-widest text-dark/60 dark:text-light/60 mb-2">
-            Time scale (sim yr / wall sec)
-          </label>
+      <BackToHub />
+      <InstrumentTitle name="Solar System" />
+      <IdleHint text="click a planet · drag to orbit · scroll to zoom" />
+
+      {/* Top-right live info */}
+      <div className="fixed top-4 right-4 z-40 rounded-md bg-black/60 backdrop-blur-sm px-3 py-2 text-[11px] font-mono text-white/80 pointer-events-none">
+        <div>time rate</div>
+        <div className="text-white/50">{timeScale.toFixed(3)} yr / wall-s</div>
+      </div>
+
+      {/* Left panel: time controls */}
+      <CollapsiblePanel side="left" label="time" defaultOpen={false}>
+        <div className="space-y-4 text-xs font-mono">
+          <p className="text-sm font-bold">Time scale</p>
+          <div className="text-white/50">
+            Simulation years per wall-clock second.
+          </div>
           <input
             type="range"
             min={-3}
@@ -228,64 +240,54 @@ export default function SolarSystem() {
             onChange={(e) => setTimeScale(Math.pow(10, Number(e.target.value)))}
             className="w-full"
           />
-          <div className="mt-1 text-sm font-mono">
-            {timeScale.toFixed(3)} yr/s
+          <div>{timeScale.toFixed(3)} yr/s</div>
+        </div>
+      </CollapsiblePanel>
+
+      {/* Right panel: planet info + Kepler table */}
+      <CollapsiblePanel side="right" label="planet" defaultOpen={true}>
+        <div className="text-xs font-mono space-y-4">
+          <PlanetInfo name={selected} />
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-white/50 mb-2">
+              Kepler III across 8 planets
+            </p>
+            <table className="w-full">
+              <thead>
+                <tr className="text-left border-b border-white/15 text-[10px] text-white/50">
+                  <th className="py-1 pr-2 font-normal">Planet</th>
+                  <th className="py-1 pr-2 font-normal text-right">T (yr)</th>
+                  <th className="py-1 pr-2 font-normal text-right">a (AU)</th>
+                  <th className="py-1 font-normal text-right">Δ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {planets.map((p) => (
+                  <tr
+                    key={p.name}
+                    className={`border-b border-white/10 cursor-pointer ${selected === p.name ? "bg-white/10" : ""}`}
+                    onClick={() => setSelected(p.name)}
+                  >
+                    <td className="py-1 pr-2">
+                      <span
+                        className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle"
+                        style={{ backgroundColor: p.color }}
+                      />
+                      {p.name}
+                    </td>
+                    <td className="py-1 pr-2 text-right">{(p.period / YEAR).toFixed(3)}</td>
+                    <td className="py-1 pr-2 text-right">{(p.derived / AU).toFixed(4)}</td>
+                    <td className="py-1 text-right text-green-400">
+                      {(p.error * 100).toFixed(3)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
-
-      {/* Kepler III validation summary */}
-      <div className="rounded-xl border border-dark/30 dark:border-light/30 p-4">
-        <div className="text-xs uppercase tracking-widest text-dark/60 dark:text-light/60 mb-3">
-          Kepler&apos;s third law across the eight planets — live validation
-        </div>
-        <table className="w-full text-xs font-mono">
-          <thead className="border-b border-dark/20 dark:border-light/20">
-            <tr className="text-left">
-              <th className="py-1 pr-2 font-normal">Planet</th>
-              <th className="py-1 pr-2 font-normal text-right">Period (yr)</th>
-              <th className="py-1 pr-2 font-normal text-right">Derived SMA (AU)</th>
-              <th className="py-1 pr-2 font-normal text-right">Observed (AU)</th>
-              <th className="py-1 font-normal text-right">Δ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {planets.map((p) => (
-              <tr
-                key={p.name}
-                className={`border-b border-dark/10 dark:border-light/10 cursor-pointer ${
-                  selected === p.name ? "bg-dark/5 dark:bg-light/5" : ""
-                }`}
-                onClick={() => setSelected(p.name)}
-              >
-                <td className="py-1 pr-2">
-                  <span
-                    className="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle"
-                    style={{ backgroundColor: p.color }}
-                  />
-                  {p.name}
-                </td>
-                <td className="py-1 pr-2 text-right">{(p.period / YEAR).toFixed(3)}</td>
-                <td className="py-1 pr-2 text-right">{(p.derived / AU).toFixed(4)}</td>
-                <td className="py-1 pr-2 text-right">{(p.observed / AU).toFixed(4)}</td>
-                <td className="py-1 text-right text-green-600 dark:text-green-400">
-                  {(p.error * 100).toFixed(4)}%
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <p className="max-w-3xl text-sm text-dark/70 dark:text-light/70">
-        Distances from the Sun derived live from each planet&apos;s observed
-        orbital period via <code>r³ = GM☉T²/4π²</code>. All eight match
-        observation to below 1% — the residual is the gap between our
-        circular-orbit assumption and the real elliptical orbits, not a
-        framework error. The visual layout is logarithmically compressed
-        so Neptune and Mercury fit on one scene; orbit sizes on the scene
-        do not reflect absolute AU.
-      </p>
-    </div>
+      </CollapsiblePanel>
+    </>
   );
 }
+
