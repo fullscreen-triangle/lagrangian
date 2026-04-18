@@ -5,7 +5,8 @@
       "Bash(PYTHONPATH=src PYTHONIOENCODING=utf-8 python -m loop_coupling.cli --output-dir ../output)",
       "Bash(python -c ' *)",
       "Bash(PYTHONPATH=src PYTHONIOENCODING=utf-8 python -m loop_coupling.plots --output-dir ../figures)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(PYTHONPATH=src PYTHONIOENCODING=utf-8 python -m emergent_light.cli --output-dir ../output)"
     ]
   }
 }

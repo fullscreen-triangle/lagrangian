@@ -1,0 +1,31 @@
+[project]
+name = "emergent-light"
+version = "0.1.0"
+description = "Reference implementation and validation harness for the Emergent Light Field paper."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Kundai Farai Sachikonye", email = "kundai.sachikonye@bitspark.com" },
+]
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+emergent-light = "emergent_light.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/emergent_light"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
