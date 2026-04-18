@@ -6,6 +6,12 @@ import Link from "next/link";
 
 const INSTRUMENTS = [
   {
+    slug: "light-membrane",
+    name: "Light Membrane",
+    tagline: "The full temporal-spectral field S_t(α,δ,ω). Every observation is a projection of it.",
+    status: "live",
+  },
+  {
     slug: "moon",
     name: "The Moon",
     tagline: "Twelve lunar observables derived live — mass, orbit, tides, libration, regolith.",
