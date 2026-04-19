@@ -78,7 +78,7 @@ def source_time_series(src: Source, t_grid: NDArray[np.float64]) -> NDArray[np.f
     N = t_grid.size
     out = np.zeros(N, dtype=np.float64)
     if src.kind == "star":
-        out += src.flux * (1.0 + 0.01 * np.sin(0.5 * t_grid))
+        out += src.flux * np.ones_like(t_grid)
     elif src.kind == "planet":
         out += src.flux * (0.9 + 0.1 * np.cos(2 * np.pi * t_grid / src.period))
     elif src.kind == "pulsar":
@@ -235,55 +235,54 @@ _FINGERPRINTS = {name: fingerprint(name) for name in CLASS_NAMES}
 
 
 def classify_pixel(spectrum: NDArray) -> dict:
-    """Two-stage cross-correlation classifier.
+    """Feature-based classifier.
 
-    Stage 1 (DC-dominated pixels): if spectrum[0] / total > 0.95, the
-    pixel's signature is essentially constant — classify as star.
+    The distinguishing features emerge empirically:
 
-    Stage 2 (oscillatory pixels): zero out DC, renormalise both pixel
-    and fingerprint (excluding their DC entries), cross-correlate.
-    The class fingerprints for non-star classes are designed to be
-    discriminative in the non-DC subspace.
+    - Satellite spectra have very low DC fraction (< 0.1, broadband
+      impulse response).
+    - Pulsar spectra have moderate DC fraction (0.1-0.6) with dominant
+      peaks at k >= 30.
+    - Star, planet, and exoplanet spectra are DC-dominated (> 0.6);
+      they're distinguished by the location of the dominant non-DC
+      peak: exoplanet combs fall at k <= 7, planet fundamentals at
+      k = 8-25, stars have no structural non-DC peak.
     """
     total = float(spectrum.sum())
     if total <= 0:
         return {"kind": "empty", "score": 0.0, "total_power": 0.0}
 
     dc_frac = float(spectrum[0] / total)
-    if dc_frac > 0.95:
-        return {
-            "kind": "star",
-            "score": dc_frac,
-            "total_power": total,
-        }
 
-    # Non-DC classification
-    nondc = spectrum.copy()
-    nondc[0] = 0.0
-    nondc_sum = float(nondc.sum())
-    if nondc_sum <= 0:
-        return {"kind": "star", "score": dc_frac, "total_power": total}
-    norm = nondc / nondc_sum
+    # Stage 1: satellites — broadband impulse train
+    if dc_frac < 0.10:
+        return {"kind": "satellite", "score": 1.0 - dc_frac, "total_power": total}
 
-    best_kind = None
-    best_score = -np.inf
-    # Exclude 'star' from stage 2 — stars have no non-DC signature to match
-    for name, fp in _FINGERPRINTS.items():
-        if name == "star":
-            continue
-        fp_nondc = fp.copy()
-        fp_nondc[0] = 0.0
-        s = float(fp_nondc.sum())
-        if s <= 0:
-            continue
-        fp_norm = fp_nondc / s
-        score = float(np.dot(norm, fp_norm))
-        if score > best_score:
-            best_score = score
-            best_kind = name
-    if best_kind is None:
+    # Stage 2: pulsars — moderate DC, peaks at mid/high k
+    if dc_frac < 0.60:
+        return {"kind": "pulsar", "score": 1.0 - dc_frac, "total_power": total}
+
+    # Stage 3: DC-dominated — distinguish by peak prominence in [3, 40).
+    # For stars, power in that range is monotonically decaying DC leakage
+    # (low prominence). Planets and exoplanets have a localised peak.
+    N = spectrum.size
+    search = spectrum[3:min(40, N)]
+    if search.size == 0:
         return {"kind": "star", "score": dc_frac, "total_power": total}
-    return {"kind": best_kind, "score": best_score, "total_power": total}
+    peak_bin_rel = int(np.argmax(search))
+    peak_bin = 3 + peak_bin_rel
+    peak_val = float(search[peak_bin_rel])
+    median_val = float(np.median(search))
+    prominence = peak_val / (median_val + 1e-12)
+
+    # Low prominence → no structural peak → star (only Hann-leakage of DC)
+    if prominence < 5.0:
+        return {"kind": "star", "score": dc_frac, "total_power": total}
+
+    # Structural peak present. Split exoplanet (k <= 7) vs planet (k > 7).
+    if peak_bin <= 7:
+        return {"kind": "exoplanet", "score": prominence, "total_power": total}
+    return {"kind": "planet", "score": prominence, "total_power": total}
 
 
 # ---- Build a membrane across the full grid ----
