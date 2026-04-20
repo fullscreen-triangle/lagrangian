@@ -237,6 +237,7 @@ export function satelliteRaDec(sat, tSeconds) {
 
 export const HEMISPHERE_PRESETS = {
   "London (51°N)":   { lat: 51.5,   lon: -0.13,   label: "Northern" },
+  "Nürnberg (49°N)": { lat: 49.4521, lon: 11.0767, label: "Northern" },
   "New York (41°N)": { lat: 40.7,   lon: -74.0,   label: "Northern" },
   "Equator (0°)":    { lat: 0.0,    lon: 0.0,     label: "Equator" },
   "Cape Town (34°S)":{ lat: -33.9,  lon: 18.4,    label: "Southern" },

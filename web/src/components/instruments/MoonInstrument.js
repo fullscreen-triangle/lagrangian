@@ -19,32 +19,23 @@ function MoonSphere({ phase }) {
     const geom = new THREE.SphereGeometry(1, 128, 64);
     const pos = geom.attributes.position;
     const v = new THREE.Vector3();
-    for (let i = 0; i < pos.count; i++) {
-      v.fromBufferAttribute(pos, i);
-      const h = craterNoise(v.x, v.y, v.z);
-      v.multiplyScalar(1 + h * 0.018);
-      pos.setXYZ(i, v.x, v.y, v.z);
-    }
-    geom.computeVertexNormals();
-    return geom;
-  }, []);
-
-  const colors = useMemo(() => {
-    const pos = geometry.attributes.position;
-    const arr = new Float32Array(pos.count * 3);
-    const v = new THREE.Vector3();
+    const colors = new Float32Array(pos.count * 3);
     for (let i = 0; i < pos.count; i++) {
       v.fromBufferAttribute(pos, i);
       const large = lowFreqNoise(v.x, v.y, v.z);
       const small = craterNoise(v.x, v.y, v.z);
       const mare = large < -0.15 ? 1.0 : 0.0;
       const tint = 0.55 + 0.25 * small - 0.2 * mare;
-      arr[i * 3] = tint;
-      arr[i * 3 + 1] = tint * 0.98;
-      arr[i * 3 + 2] = tint * 0.94;
+      colors[i * 3] = tint;
+      colors[i * 3 + 1] = tint * 0.98;
+      colors[i * 3 + 2] = tint * 0.94;
+      v.multiplyScalar(1 + small * 0.018);
+      pos.setXYZ(i, v.x, v.y, v.z);
     }
-    return arr;
-  }, [geometry]);
+    geom.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    geom.computeVertexNormals();
+    return geom;
+  }, []);
 
   useFrame((_, delta) => {
     if (meshRef.current) meshRef.current.rotation.y += delta * 0.06;
@@ -53,12 +44,6 @@ function MoonSphere({ phase }) {
   return (
     <group rotation={[0, phase, 0]}>
       <mesh ref={meshRef} geometry={geometry}>
-        <bufferAttribute
-          attach="attributes-color"
-          array={colors}
-          count={colors.length / 3}
-          itemSize={3}
-        />
         <meshStandardMaterial vertexColors roughness={0.95} metalness={0.02} />
       </mesh>
     </group>

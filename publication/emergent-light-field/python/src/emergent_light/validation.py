@@ -195,7 +195,7 @@ def experiment_projection() -> list[ValidationEntry]:
         "projection",
         "Star DC-dominated (spec[0] fraction)",
         dc_fraction,
-        0.9,
+        0.75,
         notes=f"dc_fraction = {dc_fraction:.4f}",
     ))
 

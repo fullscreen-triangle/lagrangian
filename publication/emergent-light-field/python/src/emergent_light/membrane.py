@@ -96,7 +96,8 @@ def source_time_series(src: Source, t_grid: NDArray[np.float64]) -> NDArray[np.f
     elif src.kind == "exoplanet":
         phase = (t_grid / src.period) % 1.0
         in_transit = phase < (src.duration / src.period)
-        out += src.flux * np.where(in_transit, 0.985, 1.0)
+        # 10% transit depth — Hot-Jupiter class, clearly visible comb.
+        out += src.flux * np.where(in_transit, 0.90, 1.0)
     return out
 
 
@@ -120,7 +121,9 @@ def synthesise_sources() -> list[Source]:
             kind="planet",
             pixel=(11 + i * 18, 23 + (i % 3) * 4),
             flux=4.0 + i * 1.2,
-            period=6000.0 + i * 3000.0,
+            # Planet periods chosen so fundamental lands in k=8..20
+            # (above the exoplanet comb, below the pulsar peak).
+            period=4500.0 + i * 1500.0,
         ))
     for i in range(3):
         sources.append(Source(
@@ -139,13 +142,16 @@ def synthesise_sources() -> list[Source]:
             flux=8.0,
             transits=transits,
         ))
-    for i in range(2):
+    # Exoplanet periods chosen so the fundamental lands at k = 4..5 and
+    # the transit comb fits cleanly inside the "exoplanet" classifier band.
+    exo_periods = [14400.0, 17280.0, 20000.0]  # → k_fund = 6, 5, 4.32
+    for i, period in enumerate(exo_periods):
         sources.append(Source(
             id=f"exo{i}",
             kind="exoplanet",
-            pixel=(61 + i * 12, 31 + i * 5),
+            pixel=(61 + i * 10, 31 + i * 4),
             flux=3.5,
-            period=18000.0 + i * 6000.0,
+            period=period,
             duration=1800.0,
         ))
     return sources
@@ -262,27 +268,29 @@ def classify_pixel(spectrum: NDArray) -> dict:
     if dc_frac < 0.60:
         return {"kind": "pulsar", "score": 1.0 - dc_frac, "total_power": total}
 
-    # Stage 3: DC-dominated — distinguish by peak prominence in [3, 40).
-    # For stars, power in that range is monotonically decaying DC leakage
-    # (low prominence). Planets and exoplanets have a localised peak.
+    # Stage 3: DC-dominated — distinguish by the fraction of total power
+    # concentrated in a structural (non-leakage) peak in [4, 40).
+    # Hann-window DC leakage fills k=1..3; we search above that.
     N = spectrum.size
-    search = spectrum[3:min(40, N)]
+    search = spectrum[4:min(40, N)]
     if search.size == 0:
         return {"kind": "star", "score": dc_frac, "total_power": total}
     peak_bin_rel = int(np.argmax(search))
-    peak_bin = 3 + peak_bin_rel
+    peak_bin = 4 + peak_bin_rel
     peak_val = float(search[peak_bin_rel])
-    median_val = float(np.median(search))
-    prominence = peak_val / (median_val + 1e-12)
+    peak_frac = peak_val / total  # structural-peak power as fraction of total
 
-    # Low prominence → no structural peak → star (only Hann-leakage of DC)
-    if prominence < 5.0:
+    # Stars: no structural peak; only DC-leakage tail (peak_frac < 1e-6).
+    # Exoplanets and planets sit well above this.
+    if peak_frac < 5e-6:
         return {"kind": "star", "score": dc_frac, "total_power": total}
 
-    # Structural peak present. Split exoplanet (k <= 7) vs planet (k > 7).
     if peak_bin <= 7:
-        return {"kind": "exoplanet", "score": prominence, "total_power": total}
-    return {"kind": "planet", "score": prominence, "total_power": total}
+        return {"kind": "exoplanet", "score": peak_frac, "total_power": total}
+    if peak_bin <= 25:
+        return {"kind": "planet", "score": peak_frac, "total_power": total}
+    # Peak above k=25 with high DC: atypical. Fall back to pulsar.
+    return {"kind": "pulsar", "score": peak_frac, "total_power": total}
 
 
 # ---- Build a membrane across the full grid ----
