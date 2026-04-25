@@ -9,7 +9,10 @@
       "Bash(PYTHONPATH=src PYTHONIOENCODING=utf-8 python -m emergent_light.cli --output-dir ../output)",
       "Bash(PYTHONPATH=src PYTHONIOENCODING=utf-8 python -m emergent_light.plots --output-dir ../figures)",
       "Read(//tmp/**)",
-      "Bash(curl -sL http://localhost:3793/instruments/moon -o /dev/null)"
+      "Bash(curl -sL http://localhost:3793/instruments/moon -o /dev/null)",
+      "Bash(node -e \"console.log\\(Object.keys\\(require\\('./package.json'\\).dependencies\\).join\\('\\\\n'\\)\\)\")",
+      "Bash(npm install *)",
+      "Bash(node --input-type=module -e ' *)"
     ]
   }
 }
