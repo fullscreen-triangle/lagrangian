@@ -1,4 +1,3 @@
-import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   PLANET_FEATURES,
@@ -13,8 +12,7 @@ import {
   InstrumentTitle,
 } from "@/components/InstrumentChrome";
 import ObservablesChart from "@/components/instruments/ObservablesChart";
-
-const Globe = dynamic(() => import("react-globe.gl"), { ssr: false });
+import Globe from "@/components/instruments/Globe";
 
 const NIGHT_SKY = "https://cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png";
 
@@ -47,13 +45,14 @@ export default function PlanetInstrument({ name }) {
   }, []);
 
   useEffect(() => {
-    if (!globeEl.current) return;
-    const controls = globeEl.current.controls();
+    const g = globeEl.current;
+    if (!g || typeof g.controls !== "function") return;
+    const controls = g.controls();
     if (!controls) return;
     controls.autoRotate = autoRotate;
     controls.autoRotateSpeed = 0.3;
     controls.enableZoom = true;
-    globeEl.current.pointOfView({ altitude: 2.4 }, 0);
+    if (typeof g.pointOfView === "function") g.pointOfView({ altitude: 2.4 }, 0);
   }, [autoRotate, size.w]);
 
   const labels = useMemo(() => {

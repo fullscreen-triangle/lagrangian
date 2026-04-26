@@ -572,16 +572,19 @@ export const PLANET_FEATURES = {
   ],
 };
 
-// Texture URLs (three-globe CDN). Bumpmap only where available.
+// Texture URLs from threex.planets (CC-BY) via jsDelivr GitHub-CDN. CORS-enabled.
+const TEX_BASE = "https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images";
 export const PLANET_TEXTURES = {
-  Mercury: { surface: "https://cdn.jsdelivr.net/npm/three-globe/example/img/mercury.jpg",            bump: null },
-  Venus:   { surface: "https://cdn.jsdelivr.net/npm/three-globe/example/img/venus_atmosphere.jpg",   bump: null },
-  Earth:   { surface: "https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg",  bump: "https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png" },
-  Mars:    { surface: "https://cdn.jsdelivr.net/npm/three-globe/example/img/mars.jpg",               bump: null },
-  Jupiter: { surface: "https://cdn.jsdelivr.net/npm/three-globe/example/img/jupiter.jpg",            bump: null },
-  Saturn:  { surface: "https://cdn.jsdelivr.net/npm/three-globe/example/img/saturn.jpg",             bump: null },
-  Uranus:  { surface: "https://cdn.jsdelivr.net/npm/three-globe/example/img/uranus.jpg",             bump: null },
-  Neptune: { surface: "https://cdn.jsdelivr.net/npm/three-globe/example/img/neptune.jpg",            bump: null },
+  Mercury: { surface: `${TEX_BASE}/mercurymap.jpg`,    bump: null },
+  Venus:   { surface: `${TEX_BASE}/venusmap.jpg`,      bump: `${TEX_BASE}/venusbump.jpg` },
+  Earth:   { surface: `${TEX_BASE}/earthmap1k.jpg`,    bump: `${TEX_BASE}/earthbump1k.jpg` },
+  Mars:    { surface: `${TEX_BASE}/marsmap1k.jpg`,     bump: `${TEX_BASE}/marsbump1k.jpg` },
+  Jupiter: { surface: `${TEX_BASE}/jupitermap.jpg`,    bump: null },
+  Saturn:  { surface: `${TEX_BASE}/saturnmap.jpg`,     bump: null,
+             ringColor:   `${TEX_BASE}/saturnringcolor.jpg`,
+             ringPattern: `${TEX_BASE}/saturnringpattern.gif` },
+  Uranus:  { surface: `${TEX_BASE}/uranusmap.jpg`,     bump: null },
+  Neptune: { surface: `${TEX_BASE}/neptunemap.jpg`,    bump: null },
 };
 
 export const PLANET_BLURB = {

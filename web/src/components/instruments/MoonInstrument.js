@@ -1,4 +1,3 @@
-import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { moonObservables } from "@/lib/celestial";
 import {
@@ -8,8 +7,7 @@ import {
   InstrumentTitle,
 } from "@/components/InstrumentChrome";
 import ObservablesChart from "@/components/instruments/ObservablesChart";
-
-const Globe = dynamic(() => import("react-globe.gl"), { ssr: false });
+import Globe from "@/components/instruments/Globe";
 
 // Apollo, Luna, Lunokhod, Chang'e, Chandrayaan, Artemis 3. Longitudes in
 // (−180, 180]; react-globe.gl wraps automatically.
@@ -41,8 +39,9 @@ const CRATERS = [
   { label: "Mare Tranquillitatis", lat: 8.50, lng: 31.40, size: 873 },
 ];
 
-const MOON_TEXTURE   = "https://cdn.jsdelivr.net/npm/three-globe/example/img/lunar_surface.jpg";
-const MOON_BUMPMAP   = "https://cdn.jsdelivr.net/npm/three-globe/example/img/lunar_bumpmap.jpg";
+const TEX_BASE       = "https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images";
+const MOON_TEXTURE   = `${TEX_BASE}/moonmap1k.jpg`;
+const MOON_BUMPMAP   = `${TEX_BASE}/moonbump1k.jpg`;
 const NIGHT_SKY      = "https://cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png";
 
 export default function MoonInstrument() {
@@ -65,13 +64,14 @@ export default function MoonInstrument() {
   }, []);
 
   useEffect(() => {
-    if (!globeEl.current) return;
-    const controls = globeEl.current.controls();
+    const g = globeEl.current;
+    if (!g || typeof g.controls !== "function") return;
+    const controls = g.controls();
     if (!controls) return;
     controls.autoRotate = autoRotate;
     controls.autoRotateSpeed = 0.3;
     controls.enableZoom = true;
-    globeEl.current.pointOfView({ altitude: 2.4 }, 0);
+    if (typeof g.pointOfView === "function") g.pointOfView({ altitude: 2.4 }, 0);
   }, [autoRotate, size.w]);
 
   const labels = useMemo(() => {

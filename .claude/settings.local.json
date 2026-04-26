@@ -12,7 +12,12 @@
       "Bash(curl -sL http://localhost:3793/instruments/moon -o /dev/null)",
       "Bash(node -e \"console.log\\(Object.keys\\(require\\('./package.json'\\).dependencies\\).join\\('\\\\n'\\)\\)\")",
       "Bash(npm install *)",
-      "Bash(node --input-type=module -e ' *)"
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(curl -s \"https://data.jsdelivr.com/v1/package/npm/three-globe@2.45.2/flat\")",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -sIo /dev/null -w '%{http_code}' https://threejs.org/examples/textures/planets/__TRACKED_VAR__)",
+      "Bash(curl -sI -H \"Origin: http://localhost:3796\" \"https://threejs.org/examples/textures/planets/moon_1024.jpg\")",
+      "Bash(curl -sIo /dev/null -w '%{http_code}' https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/__TRACKED_VAR__)"
     ]
   }
 }
