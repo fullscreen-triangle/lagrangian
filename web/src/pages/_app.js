@@ -26,7 +26,7 @@ export default function App({ Component, pageProps }) {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <main
-        className={`${montserrat.variable} font-mont bg-light dark:bg-dark w-full ${
+        className={`${montserrat.variable} font-mont bg-dark text-light w-full ${
           fullscreen ? "h-screen overflow-hidden" : "min-h-screen h-full"
         }`}
       >

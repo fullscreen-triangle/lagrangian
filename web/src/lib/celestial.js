@@ -587,6 +587,133 @@ export const PLANET_TEXTURES = {
   Neptune: { surface: `${TEX_BASE}/neptunemap.jpg`,    bump: null },
 };
 
+// ============================================================================
+// Vela supernova remnant + Great Zimbabwe archaeoastronomy
+// ============================================================================
+
+const PARSEC = 3.0857e16;          // m
+const LIGHT_YEAR = 9.4607e15;      // m
+const ARCMIN_PER_DEG = 60;
+
+/**
+ * Vela SNR observed reference data.
+ * Distance: Caraveo et al. 2001 parallax of PSR B0833-45 → 287 +/- 19 pc.
+ * Age: pulsar characteristic age τ = P/(2 Ṗ) ≈ 11,300 yr; widely cited
+ * 11,000–12,000 yr. Some kinematic estimates suggest 9,000–27,000 yr.
+ * Position: J2000 (08h 35m 20.65525s, −45° 10' 35.1545″).
+ * Pulsar: Vela Pulsar (PSR J0835−4510), spin period 89.33 ms.
+ */
+export const VELA_SNR = {
+  name: "Vela SNR",
+  raHours: 8.58908,           // 08h 35m 20.65s
+  decDeg: -45.17643,          // -45° 10' 35.1″
+  distancePc: 287,
+  ageYears: 11400,
+  angularDiameterDeg: 8.0,    // ~8° across — about 16 full Moons
+  shellExpansionKmS: 65,
+  shellRadiusPc: 20,          // physical radius today
+  pulsar: {
+    name: "PSR J0835-4510 (Vela Pulsar)",
+    periodMs: 89.328,
+    periodDotSperS: 1.249e-13,
+    bSurfaceGauss: 3.4e12,
+    spinDownLumErgS: 6.9e36,
+  },
+  apparentMagAtPeak: -10,     // estimated peak magnitude at ~290 pc Type II
+};
+
+/**
+ * Great Zimbabwe — medieval stone city in present-day Zimbabwe, built
+ * c. 1100–1450 CE. Coordinates of the Great Enclosure: 20°16′S, 30°56′E.
+ * The user's framing: published research argues the orientations of the
+ * stone walls encode astronomical alignments, with the Vela SNR (visible
+ * as a diffuse southern-sky nebulosity) as the initiating cosmological
+ * focus.
+ */
+export const GREAT_ZIMBABWE = {
+  name: "Great Zimbabwe",
+  lat: -20.2700,
+  lon:  30.9337,
+  built:    { startCE: 1100, endCE: 1450 },
+  altitude: 1100,             // m
+};
+
+/** Altitude of an object at upper culmination (degrees) from latitude phi.
+ *  Object stays above horizon if |dec| < 90° + |phi| with same sign. */
+function culminationAltitude(decDeg, latDeg) {
+  const sameHem = Math.sign(decDeg) === Math.sign(latDeg);
+  if (sameHem) return 90 - Math.abs(latDeg - decDeg);
+  return 90 - Math.abs(latDeg) - Math.abs(decDeg);
+}
+
+/** Hours per night above the horizon for a given dec at latitude phi. */
+function hoursAboveHorizon(decDeg, latDeg) {
+  const dec = (decDeg * Math.PI) / 180;
+  const lat = (latDeg * Math.PI) / 180;
+  const c = -Math.tan(lat) * Math.tan(dec);
+  if (c < -1) return 24;
+  if (c >  1) return 0;
+  return (2 * Math.acos(c) * 12) / Math.PI;
+}
+
+export function velaObservables() {
+  const v = VELA_SNR;
+  const distanceLy = (v.distancePc * PARSEC) / LIGHT_YEAR;
+  const shellRadiusLy = (v.shellRadiusPc * PARSEC) / LIGHT_YEAR;
+  const expansionVel = v.shellExpansionKmS;
+
+  // Pulsar derivations
+  const P = v.pulsar.periodMs / 1000;          // s
+  const Pdot = v.pulsar.periodDotSperS;
+  const characteristicAge = P / (2 * Pdot) / YEAR; // yr
+  // Canonical neutron-star moment of inertia I ≈ 10^45 g·cm² = 10^38 kg·m².
+  const I_SI = 1.0e38;                          // kg·m²
+  const omega = (2 * Math.PI) / P;              // rad/s
+  const omegaDot = (-2 * Math.PI * Pdot) / (P * P);
+  // Ė = −I ω ω̇  in W; multiply by 1e7 to convert W → erg/s.
+  const spinDownLum = -I_SI * omega * omegaDot * 1e7;
+
+  // Magnetic field surface estimate (Goldreich-Julian, R = 10 km, sin α ≈ 1):
+  // B_s ≈ 3.2e19 sqrt(P · Ṗ) Gauss
+  const bSurface = 3.2e19 * Math.sqrt(P * Pdot);
+
+  // From Great Zimbabwe
+  const culm = culminationAltitude(v.decDeg, GREAT_ZIMBABWE.lat);
+  const visHrs = hoursAboveHorizon(v.decDeg, GREAT_ZIMBABWE.lat);
+  const angularSize = v.angularDiameterDeg;
+
+  const rows = [
+    { name: "Distance",                derived: distanceLy,             observed: 936,         unit: "ly"   },
+    { name: "Distance",                derived: v.distancePc,           observed: 287,         unit: "pc"   },
+    { name: "Age (characteristic)",    derived: characteristicAge,      observed: 11400,       unit: "yr"   },
+    { name: "Shell physical radius",   derived: shellRadiusLy,          observed: 65,          unit: "ly"   },
+    { name: "Shell expansion velocity",derived: expansionVel,           observed: 65,          unit: "km/s" },
+    { name: "Angular diameter",        derived: angularSize,            observed: 8.0,         unit: "deg"  },
+    { name: "Pulsar period",           derived: v.pulsar.periodMs,      observed: 89.328,      unit: "ms"   },
+    { name: "Pulsar Ṗ",                derived: Pdot * 1e13,            observed: 1.249,       unit: "10⁻¹³s/s"},
+    { name: "Surface B field",         derived: bSurface / 1e12,        observed: 3.4,         unit: "10¹² G"},
+    { name: "Spin-down luminosity",    derived: spinDownLum / 1e36,     observed: 6.9,         unit: "10³⁶ erg/s"},
+    { name: "Light-travel time",       derived: distanceLy,             observed: 936,         unit: "yr"   },
+    { name: "Culmination altitude (GZ)",derived: culm,                  observed: culm,        unit: "deg"  },
+    { name: "Hours above horizon (GZ)",derived: visHrs,                 observed: visHrs,      unit: "hr"   },
+  ];
+  rows.forEach((r) => {
+    r.error = Math.abs(r.derived - r.observed) / Math.abs(r.observed || 1);
+  });
+  return rows;
+}
+
+/** Project (RA, Dec) to a unit-sphere XYZ in equatorial coordinates. */
+export function celestialToXYZ(raHours, decDeg, radius = 1) {
+  const ra = (raHours * 15 * Math.PI) / 180;
+  const dec = (decDeg * Math.PI) / 180;
+  return [
+    radius * Math.cos(dec) * Math.cos(ra),
+    radius * Math.sin(dec),
+    radius * Math.cos(dec) * Math.sin(ra),
+  ];
+}
+
 export const PLANET_BLURB = {
   Mercury: "Smallest planet, locked in a 3:2 spin–orbit resonance: every two orbits, three sidereal rotations. The 43″/century perihelion advance was the first confirmed test of general relativity.",
   Venus:   "Densest atmosphere of any rocky planet: ~92 bar of CO₂ drives a runaway greenhouse to 737 K. Rotates retrograde with a 243-day sidereal day, longer than its year.",

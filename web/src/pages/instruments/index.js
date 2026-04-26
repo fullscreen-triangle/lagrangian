@@ -72,6 +72,12 @@ const INSTRUMENTS = [
     status: "live",
   },
   {
+    slug: "vela",
+    name: "Vela SNR",
+    tagline: "11 400-year-old Type II remnant at 287 pc; PSR J0835−4510 spinning at 11.2 Hz; Great Zimbabwe sight-line.",
+    status: "live",
+  },
+  {
     slug: "sky-survey",
     name: "Sky Survey",
     tagline: "Procedural 3D starfield. Select stars and watch a single ray resolve all of them.",
