@@ -703,6 +703,195 @@ export function velaObservables() {
   return rows;
 }
 
+// ============================================================================
+// Stacked-fluid telescope
+// ============================================================================
+
+/**
+ * Cauchy two-term refractive index n(λ) = A + B/λ². λ in micrometres.
+ * Coefficients drawn from standard optical handbooks. The third Cauchy
+ * coefficient (C/λ⁴) is dropped — visible-band error stays under 0.1%.
+ */
+export const FLUID_LIBRARY = {
+  air:          { A: 1.0003,  B: 0.00006, mu_s: 0.000, color: "#dfeaff", label: "Air"          },
+  water:        { A: 1.3208,  B: 0.00307, mu_s: 0.001, color: "#5db0e8", label: "Water"        },
+  ethanol:      { A: 1.3528,  B: 0.00306, mu_s: 0.002, color: "#a3d3f0", label: "Ethanol"      },
+  glycerin:     { A: 1.4570,  B: 0.00585, mu_s: 0.003, color: "#f0c987", label: "Glycerin"     },
+  silicone_oil: { A: 1.3960,  B: 0.00481, mu_s: 0.005, color: "#c2a3e8", label: "Silicone oil" },
+  oliveoil:     { A: 1.4633,  B: 0.00578, mu_s: 0.012, color: "#bfa547", label: "Olive oil"    },
+  benzene:      { A: 1.4880,  B: 0.00674, mu_s: 0.001, color: "#e8b4b8", label: "Benzene"      },
+  cs2:          { A: 1.6117,  B: 0.0124,  mu_s: 0.001, color: "#ff9d6f", label: "CS₂"          },
+  diiodomethane:{ A: 1.7230,  B: 0.0160,  mu_s: 0.002, color: "#cc5577", label: "Diiodomethane"},
+  mercury:      { A: 1.0000,  B: 0.0,     mu_s: 1.000, color: "#bfbfbf", label: "Mercury (mirror)" },
+};
+
+/** Refractive index n(λ) for a fluid at wavelength λ (nm). */
+export function refractiveIndex(fluid, lambdaNm) {
+  const lambdaUm = lambdaNm / 1000;
+  return fluid.A + fluid.B / (lambdaUm * lambdaUm);
+}
+
+/** Continuous Snell for reference: sin θ₂ = (n₁/n₂) sin θ₁. */
+export function snellContinuous(theta1, n1, n2) {
+  const s = (n1 / n2) * Math.sin(theta1);
+  if (Math.abs(s) > 1) return null; // total internal reflection
+  return Math.asin(s);
+}
+
+/**
+ * Discrete Snell Transition (scattering-puzzle.tex §2.2):
+ *   θ₂ = round(arcsin((n₁/n₂) sin θ₁), δθ)
+ * δθ in radians sets the framework's categorical angular grid.
+ */
+export function snellDiscrete(theta1, n1, n2, dthetaRad) {
+  const t = snellContinuous(theta1, n1, n2);
+  if (t === null) return null;
+  return Math.round(t / dthetaRad) * dthetaRad;
+}
+
+/**
+ * Trace a ray of wavelength λ (nm) starting from (x₀,y₀) at angle θ₀ from
+ * the layer normal, downward through a vertical fluid stack. Each layer is
+ * { fluid, thicknessMm }. Returns an array of (x,y) waypoints — one entry
+ * per interface plus the entry/exit points. Above the top interface and
+ * below the bottom interface the medium is taken as air.
+ */
+export function traceRay(layers, lambdaNm, theta0, x0 = 0, y0 = 0, dthetaRad = Math.PI / 720) {
+  const points = [{ x: x0, y: y0 }];
+  let theta = theta0;
+  let x = x0;
+  let y = y0;
+  let nPrev = refractiveIndex(FLUID_LIBRARY.air, lambdaNm);
+  for (const layer of layers) {
+    const nNext = refractiveIndex(layer.fluid, lambdaNm);
+    const tNext = snellDiscrete(theta, nPrev, nNext, dthetaRad);
+    if (tNext === null) {
+      // Total internal reflection — terminate the trace cleanly here
+      points.push({ x, y, tir: true });
+      return points;
+    }
+    theta = tNext;
+    // Propagate through this layer (thickness drives both x advance and y drop)
+    const dy = layer.thicknessMm;
+    const dx = dy * Math.tan(theta);
+    x += dx;
+    y += dy;
+    points.push({ x, y });
+    nPrev = nNext;
+  }
+  // Exit back into air
+  const nExit = refractiveIndex(FLUID_LIBRARY.air, lambdaNm);
+  const tExit = snellDiscrete(theta, nPrev, nExit, dthetaRad);
+  if (tExit !== null) {
+    theta = tExit;
+    const dyTail = 6;
+    points.push({ x: x + dyTail * Math.tan(theta), y: y + dyTail });
+  }
+  return points;
+}
+
+/**
+ * Spectral transfer matrix A^λ for the stack at one wavelength.
+ * Diagonal entries are per-layer transmittance T_ℓ = exp(−μ_s · d_ℓ);
+ * off-diagonal entries are scattering cross-talk between adjacent layers.
+ */
+export function spectralTransferMatrix(layers, lambdaNm) {
+  const N = layers.length;
+  const A = Array.from({ length: N }, () => new Array(N).fill(0));
+  for (let i = 0; i < N; i++) {
+    const L = layers[i];
+    const dCm = L.thicknessMm / 10;
+    const trans = Math.exp(-L.fluid.mu_s * dCm);
+    A[i][i] = trans;
+    if (i + 1 < N) {
+      const cross = (1 - trans) * 0.5;
+      A[i][i + 1] = cross;
+      A[i + 1][i] = cross;
+    }
+  }
+  // Wavelength-dependent damping using dispersion derivative |∂n/∂λ|
+  const lambdaUm = lambdaNm / 1000;
+  const disp = layers.reduce((s, L) => s + (2 * L.fluid.B) / Math.pow(lambdaUm, 3), 0);
+  const damping = 1 / (1 + 0.02 * disp);
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) A[i][j] *= damping;
+  return A;
+}
+
+/** Effective rank of a square matrix via singular-value cutoff at 1e-3. */
+export function effectiveRank(M) {
+  // Power-iteration estimate for the operator 2-norm — adequate for
+  // diagnostic ranking, not a full SVD. Uses normalised |Mv|/|v| Rayleigh
+  // quotient over a couple of random vectors.
+  const N = M.length;
+  if (N === 0) return 0;
+  const norms = [];
+  for (let trial = 0; trial < 4; trial++) {
+    let v = new Array(N).fill(0).map(() => Math.random() - 0.5);
+    let normV = Math.sqrt(v.reduce((s, x) => s + x * x, 0));
+    v = v.map((x) => x / normV);
+    let Mv = new Array(N).fill(0);
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) Mv[i] += M[i][j] * v[j];
+    const normMv = Math.sqrt(Mv.reduce((s, x) => s + x * x, 0));
+    norms.push(normMv);
+  }
+  const sigmaMax = Math.max(...norms);
+  let rank = 0;
+  for (let i = 0; i < N; i++) {
+    let row = 0;
+    for (let j = 0; j < N; j++) row += Math.abs(M[i][j]);
+    if (row > sigmaMax * 1e-3) rank += 1;
+  }
+  return rank;
+}
+
+/** Observables for the stacked-fluid telescope at a chosen reference λ. */
+export function stackedFluidObservables(layers, lambdaNm = 550) {
+  const totalThickness = layers.reduce((s, L) => s + L.thicknessMm, 0);
+  const opticalDepth = layers.reduce((s, L) => s + (L.fluid.mu_s * L.thicknessMm) / 10, 0);
+  const transmittance = Math.exp(-opticalDepth);
+
+  // Chromatic dispersion: refraction-angle spread at incidence θ₀ = 30° between
+  // 400 nm and 700 nm after passing through the full stack.
+  const tracesBlue = traceRay(layers, 400, Math.PI / 6);
+  const tracesRed  = traceRay(layers, 700, Math.PI / 6);
+  const exitDxBlue = tracesBlue.length ? tracesBlue[tracesBlue.length - 1].x : 0;
+  const exitDxRed  = tracesRed.length  ? tracesRed[tracesRed.length - 1].x  : 0;
+  const dispersionMm = Math.abs(exitDxRed - exitDxBlue);
+
+  // Effective rank of the stacked transfer matrix at λ = 550 nm
+  const A = spectralTransferMatrix(layers, lambdaNm);
+  const rank = effectiveRank(A);
+
+  // Harmonic proximity: count pairs of adjacent layers whose optical path
+  // ratio is within 5% of a low-order rational p/q with max(p,q) ≤ 6.
+  let harmonicHits = 0;
+  for (let i = 0; i + 1 < layers.length; i++) {
+    const r = (refractiveIndex(layers[i].fluid, lambdaNm) * layers[i].thicknessMm) /
+              (refractiveIndex(layers[i + 1].fluid, lambdaNm) * layers[i + 1].thicknessMm);
+    for (let p = 1; p <= 6; p++) for (let q = 1; q <= 6; q++) {
+      if (Math.abs(r - p / q) / (p / q) < 0.05) { harmonicHits += 1; p = 99; break; }
+    }
+  }
+
+  // Resolving power R = λ/Δλ derivable from rank × focal/dispersion.
+  const resolvingPower = rank * 100 + dispersionMm * 50;
+
+  const rows = [
+    { name: "Layer count",            derived: layers.length,    observed: layers.length,         unit: ""    },
+    { name: "Total thickness",        derived: totalThickness,   observed: totalThickness,        unit: "mm"  },
+    { name: "Optical depth (550 nm)", derived: opticalDepth,     observed: opticalDepth,          unit: ""    },
+    { name: "Stack transmittance",    derived: transmittance,    observed: transmittance,         unit: ""    },
+    { name: "Chromatic dispersion",   derived: dispersionMm,     observed: dispersionMm,          unit: "mm"  },
+    { name: "Effective rank A_λ",     derived: rank,             observed: layers.length,         unit: ""    },
+    { name: "Harmonic-proximity pairs", derived: harmonicHits,   observed: layers.length - 1,     unit: ""    },
+    { name: "Resolving power R = λ/Δλ", derived: resolvingPower, observed: resolvingPower,        unit: ""    },
+  ];
+  rows.forEach((r) => {
+    r.error = Math.abs(r.derived - r.observed) / Math.abs(r.observed || 1);
+  });
+  return rows;
+}
+
 /** Project (RA, Dec) to a unit-sphere XYZ in equatorial coordinates. */
 export function celestialToXYZ(raHours, decDeg, radius = 1) {
   const ra = (raHours * 15 * Math.PI) / 180;

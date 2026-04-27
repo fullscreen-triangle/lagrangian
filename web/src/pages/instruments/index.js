@@ -78,6 +78,12 @@ const INSTRUMENTS = [
     status: "live",
   },
   {
+    slug: "liquid-mirror",
+    name: "Stacked-Fluid Telescope",
+    tagline: "Virtual liquid-mirror with N stacked fluids. The stack is its own hyperspectral spectrometer — Discrete Snell + Spectral Separability.",
+    status: "live",
+  },
+  {
     slug: "sky-survey",
     name: "Sky Survey",
     tagline: "Procedural 3D starfield. Select stars and watch a single ray resolve all of them.",
