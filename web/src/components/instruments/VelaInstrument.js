@@ -246,7 +246,7 @@ export default function VelaInstrument() {
           <div>
             <p className="text-sm font-bold mb-2">Derived observables</p>
             <p className="text-white/50 mb-2 text-[10px]">
-              Pulsar quantities derived from {VELA_SNR.pulsar.name}'s spin period
+              Pulsar quantities derived from {VELA_SNR.pulsar.name}&apos;s spin period
               and Ṗ. Visibility derived for Great Zimbabwe latitude.
             </p>
             <table className="w-full">
