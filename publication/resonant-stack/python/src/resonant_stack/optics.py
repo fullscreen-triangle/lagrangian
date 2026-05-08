@@ -22,13 +22,14 @@ C_LIGHT_UM_PS = C_LIGHT * 1e-6  # μm ps^-1
 # ---------------------------------------------------------------------------
 
 FLUIDS: dict[str, tuple[float, float]] = {
-    "water":    (1.3210, 0.00640),
-    "glycerol": (1.4590, 0.00580),
-    "ethanol":  (1.3550, 0.00530),
-    "benzene":  (1.4870, 0.00900),
-    "cs2":      (1.5940, 0.01250),
-    "toluene":  (1.4840, 0.00870),
-    "olive_oil":(1.4660, 0.00750),
+    "water":      (1.3210, 0.00640),
+    "glycerol":   (1.4590, 0.00580),
+    "ethanol":    (1.3550, 0.00530),
+    "benzene":    (1.4870, 0.00900),
+    "cs2":        (1.5940, 0.01250),
+    "toluene":    (1.4840, 0.00870),
+    "olive_oil":  (1.4660, 0.00750),
+    "nondispersive": (1.5000, 0.0),   # constant n (B=0): fully degenerate for rank test
 }
 
 # Five canonical wavelengths (nm → μm)
@@ -151,6 +152,9 @@ def propagate_ray_full(
 
     angles[k, i] = angle inside layer i for wavelength k.
     n_values[k, i] = refractive index of layer i at wavelength k.
+
+    Angles are propagated per-wavelength (each λ has its own refracted angle at each
+    interface) using the discrete Snell transition.
     """
     K = len(lam_um)
     N = len(stack)
@@ -161,19 +165,18 @@ def propagate_ray_full(
     n_vals = np.zeros((K, N))
 
     n_prev = n_air.copy()
-    theta_in = theta0
+    theta_current = theta0 * np.ones(K)  # per-wavelength angle
 
     for i, layer in enumerate(stack):
         n_layer = layer.n(lam_um)
-        # Compute per-wavelength refraction
-        sin_theta2 = n_prev * np.sin(theta_in) / n_layer
-        sin_theta2 = np.clip(sin_theta2, -1.0, 1.0)
-        theta2_raw = np.arcsin(sin_theta2)
+        sin2 = n_prev * np.sin(theta_current) / n_layer
+        sin2 = np.clip(sin2, -1.0, 1.0)
+        theta2_raw = np.arcsin(sin2)
         theta2 = np.round(theta2_raw / dtheta) * dtheta
         angles[:, i] = theta2
         n_vals[:, i] = n_layer
         n_prev = n_layer
-        theta_in = float(np.mean(theta2))  # carry the mean angle forward
+        theta_current = theta2  # per-wavelength update
 
     return angles, n_vals
 
@@ -187,6 +190,7 @@ def build_transfer_matrix(
     """Build the K×J transfer matrix A[k,j] = output angle for λ_k, θ_j.
 
     K = len(lam_um), J = len(theta_inputs).
+    Angles propagate per-wavelength through all N layers via discrete Snell.
     """
     K = len(lam_um)
     J = len(theta_inputs)
@@ -196,17 +200,17 @@ def build_transfer_matrix(
 
     for j, theta0 in enumerate(theta_inputs):
         n_prev = n_air.copy()
-        theta_in = theta0
+        theta_current = theta0 * np.ones(K)  # per-wavelength
         for layer in stack:
             n_layer = layer.n(lam_um)
-            sin2 = n_prev * np.sin(theta_in) / n_layer
+            sin2 = n_prev * np.sin(theta_current) / n_layer
             sin2 = np.clip(sin2, -1.0, 1.0)
             theta2_raw = np.arcsin(sin2)
             theta2 = np.round(theta2_raw / dtheta) * dtheta
             n_prev = n_layer
-            theta_in = float(np.mean(theta2))
+            theta_current = theta2  # per-wavelength update
         # Exit into air
-        sin_out = n_prev * np.sin(theta_in) / n_air
+        sin_out = n_prev * np.sin(theta_current) / n_air
         sin_out = np.clip(sin_out, -1.0, 1.0)
         theta_out_raw = np.arcsin(sin_out)
         theta_out = np.round(theta_out_raw / dtheta) * dtheta

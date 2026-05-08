@@ -17,7 +17,9 @@
       "Bash(python3 -c ' *)",
       "Bash(curl -sIo /dev/null -w '%{http_code}' https://threejs.org/examples/textures/planets/__TRACKED_VAR__)",
       "Bash(curl -sI -H \"Origin: http://localhost:3796\" \"https://threejs.org/examples/textures/planets/moon_1024.jpg\")",
-      "Bash(curl -sIo /dev/null -w '%{http_code}' https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/__TRACKED_VAR__)"
+      "Bash(curl -sIo /dev/null -w '%{http_code}' https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/__TRACKED_VAR__)",
+      "Bash(pip install *)",
+      "Bash(python -m resonant_stack.cli validate --output-dir output)"
     ]
   }
 }

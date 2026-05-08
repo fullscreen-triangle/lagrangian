@@ -118,24 +118,29 @@ def verify_shapiro_equivalence(
     angles_inside: NDArray,
     n_loop: int,
 ) -> tuple[NDArray, NDArray, NDArray]:
-    """Compare OPL-based delay vs Shapiro-based delay.
+    """Compare OPL-based dispersive delay vs Shapiro-based delay.
 
-    Returns (delta_tau_opl, delta_tau_shapiro, relative_error).
-    The two should agree because Δτ_OPL = n_loop*L0/c and
-    Δτ_Shapiro = n_loop*(L0 - L_vac)/c — they differ by L_vac/c (vacuum transit).
-    We compare the dispersive (wavelength-dependent) parts only.
+    Both should equal n_loop * 2 * Σ_k d_k (Re[n_k] - 1) / cos(θ_k) / c.
+
+    The OPL delay decomposes as: L_total/c = L_vac/c + L_dispersive/c,
+    where L_vac = Σ_k 2 d_k / cos(θ_k)  (per-layer vacuum slant path, NOT d_total/cos_mean).
     """
     tau_opl = temporal_delay(stack, lam_um, angles_inside, n_loop)
-    tau_shapiro_dispersive = shapiro_delay_from_stack(stack, lam_um, angles_inside, n_loop)
 
-    # Vacuum round-trip delay (same for all λ)
-    total_thickness = sum(layer.d for layer in stack)
-    cos_mean = np.mean(np.cos(angles_inside), axis=1)
-    cos_mean = np.maximum(cos_mean, 1e-8)
-    L_vac = 2.0 * total_thickness / cos_mean
+    # Correct per-layer vacuum slant path: L_vac_k = 2 d_k / cos(θ_k)
+    K = len(lam_um)
+    L_vac = np.zeros(K)
+    for i, layer in enumerate(stack):
+        cos_theta = np.cos(angles_inside[:, i])
+        cos_theta = np.maximum(cos_theta, 1e-8)
+        L_vac += 2.0 * layer.d / cos_theta
     tau_vac = n_loop * L_vac / C_LIGHT_UM_PS
 
     tau_opl_dispersive = tau_opl - tau_vac
+
+    # Shapiro dispersive delay (same formula, computed independently)
+    tau_shapiro_dispersive = shapiro_delay_from_stack(stack, lam_um, angles_inside, n_loop)
+
     rel_err = np.abs(tau_opl_dispersive - tau_shapiro_dispersive) / (
         np.abs(tau_shapiro_dispersive) + 1e-30
     )
