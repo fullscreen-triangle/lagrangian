@@ -96,6 +96,12 @@ const INSTRUMENTS = [
     status: "live",
   },
   {
+    slug: "resonant-stack",
+    name: "Resonant Stack",
+    tagline: "Five-fluid spectral stack: Cauchy dispersion, temporal echoes, Triple Observation Identity, and composition inflation — live in the browser.",
+    status: "live",
+  },
+  {
     slug: "atmosphere",
     name: "Atmosphere",
     tagline: "Five-pass sky renderer with physically derived Rayleigh and Mie scattering.",

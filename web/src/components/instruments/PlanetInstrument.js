@@ -13,6 +13,8 @@ import {
 } from "@/components/InstrumentChrome";
 import ObservablesChart from "@/components/instruments/ObservablesChart";
 import Globe from "@/components/instruments/Globe";
+import { useWikipediaSummary, firstSentences } from "@/lib/wikipedia";
+import { PLANET_WIKI, FEATURE_WIKI } from "@/lib/wikipedia-articles";
 
 const NIGHT_SKY = "https://cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png";
 
@@ -31,6 +33,7 @@ export default function PlanetInstrument({ name }) {
   const [showGraticules, setShowGraticules] = useState(false);
   const [autoRotate, setAutoRotate] = useState(true);
   const [size, setSize] = useState({ w: 0, h: 0 });
+  const [selectedFeature, setSelectedFeature] = useState(null);
 
   const meanError = observables.reduce((s, o) => s + o.error, 0) / observables.length;
   const maxError = Math.max(...observables.map((o) => o.error));
@@ -101,8 +104,11 @@ export default function PlanetInstrument({ name }) {
             labelAltitude={0.01}
             labelLabel={(d) =>
               d._kind === "mission"
-                ? `<div style="font:12px monospace;color:#fff"><b>${d.label}</b><br/>${d.agency} · ${d.year}</div>`
-                : `<div style="font:12px monospace;color:#fff"><b>${d.label}</b></div>`
+                ? `<div style="font:12px monospace;color:#fff"><b>${d.label}</b><br/>${d.agency} · ${d.year}<br/><span style="color:#93c5fd;font-size:10px">click for summary</span></div>`
+                : `<div style="font:12px monospace;color:#fff"><b>${d.label}</b><br/><span style="color:#93c5fd;font-size:10px">click for summary</span></div>`
+            }
+            onLabelClick={(d) =>
+              setSelectedFeature((prev) => prev?.label === d.label ? null : d)
             }
             ringsData={rings}
             ringColor={(d) => () => d.color}
@@ -126,6 +132,11 @@ export default function PlanetInstrument({ name }) {
         <div className="space-y-3 text-xs font-mono">
           <p className="text-sm font-bold">{name}</p>
           <p className="text-[10px] text-white/60 leading-snug">{PLANET_BLURB[name]}</p>
+          <WikiSummary
+            planetName={name}
+            feature={selectedFeature}
+            onClear={() => setSelectedFeature(null)}
+          />
           <div className="border-t border-white/10 pt-2 space-y-2">
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={showMissions} onChange={(e) => setShowMissions(e.target.checked)} />
@@ -184,6 +195,58 @@ export default function PlanetInstrument({ name }) {
         </div>
       </CollapsiblePanel>
     </>
+  );
+}
+
+function WikiSummary({ planetName, feature, onClear }) {
+  const articleTitle = feature
+    ? (FEATURE_WIKI[feature.label] ?? null)
+    : (PLANET_WIKI[planetName] ?? null);
+
+  const { data, loading } = useWikipediaSummary(articleTitle);
+  const extract = firstSentences(data?.extract, 3);
+  const url = data?.content_urls?.desktop?.page;
+
+  return (
+    <div className="border-t border-white/10 pt-2 mt-2 space-y-1">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] uppercase tracking-wide text-white/35 font-mono">
+          {feature ? `📍 ${feature.label}` : "overview"}
+        </p>
+        {feature && (
+          <button
+            onClick={onClear}
+            className="text-[10px] text-white/30 hover:text-white/70 transition leading-none px-1"
+            title="back to planet overview"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      {loading && (
+        <p className="text-[10px] text-white/35 animate-pulse font-mono">fetching…</p>
+      )}
+
+      {extract && (
+        <p className="text-[10px] text-white/65 leading-relaxed">{extract}</p>
+      )}
+
+      {url && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[10px] text-blue-400 hover:text-blue-300 transition font-mono"
+        >
+          Wikipedia →
+        </a>
+      )}
+
+      {!loading && !data && articleTitle && (
+        <p className="text-[10px] text-white/25 font-mono">no summary available</p>
+      )}
+    </div>
   );
 }
 
